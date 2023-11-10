@@ -1,72 +1,15 @@
 package main
 
 import (
-	"errors"
 	"fmt"
+	"github.com/aksenk/go-yandex-sprint1-metrics/internal/server/server"
+	"github.com/aksenk/go-yandex-sprint1-metrics/internal/server/storage"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
-type MetricType string
-
-const (
-	Gauge   = MetricType("gauge")
-	Counter = MetricType("counter")
-)
-
-type Metric struct {
-	Name  string
-	Type  MetricType
-	Value any
-}
-
-type MemStorage struct {
-	Metrics map[string]Metric
-}
-
-var (
-	errMetricType  = errors.New("incorrect metric type")
-	errMetricValue = errors.New("incorrect metric value")
-)
-
-func (s MemStorage) AddMetric(m Metric) error {
-
-	if m.Type == Gauge {
-		if tmp, err := strconv.ParseFloat(m.Value.(string), 64); err == nil {
-			m.Value = tmp
-			s.Metrics[m.Name] = m
-			return nil
-		} else {
-			return errMetricValue
-		}
-	}
-	if m.Type == Counter {
-		var intValueNew int64
-		var intValueOld int64
-
-		switch tmp := s.Metrics[m.Name].Value.(type) {
-		case int64:
-			intValueOld = tmp
-		}
-
-		if tmp, err := strconv.ParseInt(m.Value.(string), 10, 64); err == nil {
-			intValueNew = tmp
-		} else {
-			return errMetricValue
-		}
-
-		newValue := intValueNew + intValueOld
-
-		m.Value = newValue
-		s.Metrics[m.Name] = m
-		return nil
-	}
-	return errMetricType
-}
-
-func updateMetric(storage *MemStorage) http.HandlerFunc {
+func updateMetric(storage *storage.MemStorage) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodPost {
 			http.Error(res, "Only POST allowed", http.StatusMethodNotAllowed)
@@ -80,12 +23,12 @@ func updateMetric(storage *MemStorage) http.HandlerFunc {
 			return
 		}
 
-		var metricType MetricType
+		var metricType string
 		switch mt := splitURL[2]; mt {
 		case "gauge":
-			metricType = Gauge
+			metricType = "gauge"
 		case "counter":
-			metricType = Counter
+			metricType = "counter"
 		default:
 			http.Error(res, "incorrect metric type", http.StatusBadRequest)
 			return
@@ -93,13 +36,9 @@ func updateMetric(storage *MemStorage) http.HandlerFunc {
 		metricName := splitURL[3]
 		metricValue := splitURL[4]
 
-		m := Metric{
-			Name:  metricName,
-			Type:  metricType,
-			Value: metricValue,
-		}
+		m := storage.NewMetric(metricName, metricType, metricValue)
 
-		err := storage.AddMetric(m)
+		err := storage.AddMetric(*m)
 		if err != nil {
 			http.Error(res, "can not convert metric value", http.StatusBadRequest)
 			return
@@ -113,10 +52,11 @@ func updateMetric(storage *MemStorage) http.HandlerFunc {
 
 func main() {
 	listenAddr := "localhost:8080"
-	storage := MemStorage{
-		Metrics: map[string]Metric{},
+	listenPath := "/update/"
+	storage := storage.NewStorage()
+	// TODO не нравится как сделано с сервером, но пока не знаю как по другому
+	err := server.NewServer(listenAddr, listenPath, updateMetric(storage))
+	if err != nil {
+		log.Fatal(err)
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/update/", updateMetric(&storage))
-	log.Fatal(http.ListenAndServe(listenAddr, mux))
 }
