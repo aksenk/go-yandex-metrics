@@ -2,46 +2,30 @@ package storage
 
 import (
 	"errors"
+	"github.com/aksenk/go-yandex-sprint1-metrics/internal/models"
 	"strconv"
 )
-
-//type MetricType string
-//
-//const (
-//	Gauge   = MetricType("gauge")
-//	Counter = MetricType("counter")
-//)
 
 var (
 	errMetricType  = errors.New("incorrect metric type")
 	errMetricValue = errors.New("incorrect metric value")
 )
 
-type Metric struct {
-	Name  string
-	Type  string
-	Value any
+type MemStorage struct {
+	Metrics map[string]models.Metric
 }
 
-type MemStorage struct {
-	Metrics map[string]Metric
+type Storage interface {
+	AddMetric() error
 }
 
 func NewStorage() *MemStorage {
 	return &MemStorage{
-		Metrics: map[string]Metric{},
+		Metrics: map[string]models.Metric{},
 	}
 }
 
-func (s MemStorage) NewMetric(metricName string, metricType string, metricValue any) *Metric {
-	return &Metric{
-		Name:  metricName,
-		Type:  metricType,
-		Value: metricValue,
-	}
-}
-
-func (s MemStorage) AddMetric(m Metric) error {
+func (s MemStorage) AddMetric(m models.Metric) error {
 	if m.Type == "gauge" {
 		if tmp, err := strconv.ParseFloat(m.Value.(string), 64); err == nil {
 			m.Value = tmp
@@ -67,7 +51,6 @@ func (s MemStorage) AddMetric(m Metric) error {
 		}
 
 		newValue := intValueNew + intValueOld
-
 		m.Value = newValue
 		s.Metrics[m.Name] = m
 		return nil
