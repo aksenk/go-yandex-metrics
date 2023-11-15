@@ -76,10 +76,10 @@ func sendMetrics(metrics []models.Metric, serverURL string) error {
 			return err
 		}
 		res, err := http.DefaultClient.Do(req)
-		err = res.Body.Close()
 		if err != nil {
 			return err
 		}
+		err = res.Body.Close()
 		if err != nil {
 			return err
 		}
@@ -116,22 +116,14 @@ func getMetrics(c chan []models.Metric, s time.Duration) {
 
 		pollCountMetric, randomValueMetric := generateCustomMetrics()
 		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)
-		//log.Printf("result systemMetrics:\n%+v", resultMetrics)
 		log.Printf("metrics received\n")
 		select {
 		// если канал пуст - помещаем туда данные
 		case c <- resultMetrics:
-			//log.Printf("put metric\n")
 		// если в канале уже есть данные
 		default:
-			//log.Printf("full channel\n")
-			select {
-			// очищаем канал
-			case <-c:
-				//log.Printf("clear and put\n")
-				// кладём новые данные
-				c <- resultMetrics
-			}
+			<-c
+			c <- resultMetrics
 		}
 		time.Sleep(s)
 	}
@@ -141,14 +133,13 @@ func handleMetrics(metricsChan chan []models.Metric, ticker *time.Ticker, server
 	for {
 		select {
 		case <-ticker.C:
-			select {
-			case resultMetrics := <-metricsChan:
-				err := sendMetrics(resultMetrics, serverURL)
-				if err != nil {
-					log.Printf("Can not send metrics: %s\n", err)
-				}
-				log.Printf("Metrics have been sent successfully\n")
+			resultMetrics := <-metricsChan
+			err := sendMetrics(resultMetrics, serverURL)
+			if err != nil {
+				log.Printf("Can not send metrics: %s\n", err)
 			}
+			log.Printf("Metrics have been sent successfully\n")
+
 		}
 	}
 }
