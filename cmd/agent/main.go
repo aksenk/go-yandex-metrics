@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"github.com/aksenk/go-yandex-sprint1-metrics/internal/models"
 	"github.com/fatih/structs"
@@ -27,17 +26,15 @@ func convertMetricValueToFloat64(v interface{}) (float64, error) {
 	switch ty := v.(type) {
 	case uint32:
 		value, _ = strconv.ParseFloat(string(ty), 64)
-		fmt.Sprintf("its uint32, float: %v", value)
 		return value, nil
 	case uint64:
 		value, _ = strconv.ParseFloat(string(ty), 64)
-		fmt.Sprintf("its uint64, float: %v", value)
 		return value, nil
 	case float64:
 		return ty, nil
 	default:
 		log.Printf("unknown type\n")
-		return value, errors.New(fmt.Sprintf("%s: %s", "unknown value type", ty))
+		return value, fmt.Errorf("%s: %s", "unknown value type", ty)
 	}
 }
 
@@ -79,11 +76,15 @@ func sendMetrics(metrics []models.Metric, serverURL string) error {
 			return err
 		}
 		res, err := http.DefaultClient.Do(req)
+		err = res.Body.Close()
+		if err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
 		if res.StatusCode != 200 {
-			return errors.New(fmt.Sprintf("unexpected response status code: %s", res.StatusCode))
+			return fmt.Errorf("unexpected response status code: %v", res.StatusCode)
 		}
 	}
 	return nil
@@ -148,7 +149,6 @@ func handleMetrics(metricsChan chan []models.Metric, ticker *time.Ticker, server
 				}
 				log.Printf("Metrics have been sent successfully\n")
 			}
-		default:
 		}
 	}
 }
