@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/aksenk/go-yandex-sprint1-metrics/internal/models"
 	"strconv"
+	"sync"
 )
 
 var (
@@ -13,6 +14,7 @@ var (
 
 type MemStorage struct {
 	Metrics map[string]models.Metric
+	mu      sync.Mutex
 }
 
 type Storage interface {
@@ -26,6 +28,8 @@ func NewStorage() *MemStorage {
 }
 
 func (s MemStorage) AddMetric(m models.Metric) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if m.Type == "gauge" {
 		if tmp, err := strconv.ParseFloat(m.Value.(string), 64); err == nil {
 			m.Value = tmp
