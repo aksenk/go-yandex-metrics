@@ -14,7 +14,7 @@ var (
 
 type MemStorage struct {
 	Metrics map[string]models.Metric
-	mu      *sync.Mutex
+	mu      sync.Mutex
 }
 
 type Storage interface {
@@ -27,7 +27,7 @@ func NewStorage() *MemStorage {
 	}
 }
 
-func (s MemStorage) AddMetric(m models.Metric) error {
+func (s *MemStorage) AddMetric(m models.Metric) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if m.Type == "gauge" {
