@@ -25,10 +25,10 @@ func convertMetricValueToFloat64(v interface{}) (float64, error) {
 	var value float64
 	switch ty := v.(type) {
 	case uint32:
-		value, _ = strconv.ParseFloat(string(ty), 64)
+		value, _ = strconv.ParseFloat(strconv.Itoa(int(ty)), 64)
 		return value, nil
 	case uint64:
-		value, _ = strconv.ParseFloat(string(ty), 64)
+		value, _ = strconv.ParseFloat(strconv.FormatUint(ty, 10), 64)
 		return value, nil
 	case float64:
 		return ty, nil
