@@ -131,16 +131,13 @@ func getMetrics(c chan []models.Metric, s time.Duration) {
 
 func handleMetrics(metricsChan chan []models.Metric, ticker *time.Ticker, serverURL string) {
 	for {
-		select {
-		case <-ticker.C:
-			resultMetrics := <-metricsChan
-			err := sendMetrics(resultMetrics, serverURL)
-			if err != nil {
-				log.Printf("Can not send metrics: %s\n", err)
-			}
-			log.Printf("Metrics have been sent successfully\n")
-
+		<-ticker.C
+		resultMetrics := <-metricsChan
+		err := sendMetrics(resultMetrics, serverURL)
+		if err != nil {
+			log.Printf("Can not send metrics: %s\n", err)
 		}
+		log.Printf("Metrics have been sent successfully\n")
 	}
 }
 
