@@ -14,7 +14,7 @@ var (
 
 type MemStorage struct {
 	Metrics map[string]models.Metric
-	mu      sync.Mutex
+	mu      *sync.Mutex
 }
 
 type Storage interface {
