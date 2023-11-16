@@ -75,8 +75,8 @@ func sendMetrics(metrics []models.Metric, serverURL string) error {
 		if err != nil {
 			return err
 		}
-		res, err := http.DefaultClient.Do(req)
 		req.Close = true
+		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err
 		}
