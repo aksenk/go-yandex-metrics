@@ -75,7 +75,7 @@ func sendMetrics(metrics []models.Metric, serverURL string) error {
 		if err != nil {
 			return err
 		}
-		req.Close = true
+		//req.Close = true
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err
@@ -137,6 +137,7 @@ func handleMetrics(metricsChan chan []models.Metric, ticker *time.Ticker, server
 		err := sendMetrics(resultMetrics, serverURL)
 		if err != nil {
 			log.Printf("Can not send metrics: %s\n", err)
+			continue
 		}
 		log.Printf("Metrics have been sent successfully\n")
 	}
