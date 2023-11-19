@@ -34,7 +34,7 @@ func sendMetrics(metrics []models.Metric, serverURL string) error {
 			return err
 		}
 		if res.StatusCode != 200 {
-			return fmt.Errorf("Unexpected response status code: %v\nError: %v", res.StatusCode, string(body))
+			return fmt.Errorf("unexpected response status code: %v\nError: %v", res.StatusCode, string(body))
 		}
 	}
 	return nil
