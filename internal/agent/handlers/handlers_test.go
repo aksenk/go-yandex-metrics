@@ -104,6 +104,9 @@ func Test_sendMetrics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost {
+					t.Error("HTTP method is not POST")
+				}
 				if tt.wantErr {
 					assert.NotEqual(t, tt.args.path, r.URL.RequestURI())
 

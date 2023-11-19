@@ -12,14 +12,14 @@ import (
 	"time"
 )
 
-func getSystemMetricsMap() map[string]interface{} {
+func getSystemMetrics() map[string]interface{} {
 	m := &runtime.MemStats{}
 	runtime.ReadMemStats(m)
 	// возвращаем преобразованный *Mem.Stats в map
 	return structs.Map(m)
 }
 
-func convertMetricValueToFloat64(v interface{}) (float64, error) {
+func convertToFloat64(v interface{}) (float64, error) {
 	var value float64
 	switch ty := v.(type) {
 	case uint32:
@@ -31,7 +31,7 @@ func convertMetricValueToFloat64(v interface{}) (float64, error) {
 	case float64:
 		return ty, nil
 	default:
-		log.Printf("unknown type\n")
+		log.Printf("unknown type:%v\n", ty)
 		return value, fmt.Errorf("%s: %s", "unknown value type", ty)
 	}
 }
@@ -41,8 +41,7 @@ func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Met
 	for k, v := range m {
 		var t models.Metric
 		if contains := slices.Contains(r, k); contains {
-			//log.Printf("processing %s, %s", k, v)
-			float64Value, err := convertMetricValueToFloat64(v)
+			float64Value, err := convertToFloat64(v)
 			if err != nil {
 				log.Printf("error: %s", err)
 				continue
@@ -52,50 +51,50 @@ func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Met
 				Type:  "gauge",
 				Value: float64Value,
 			}
-			//log.Printf("append")
 			resultMetrics = append(resultMetrics, t)
 		}
-		//else {
-		//	log.Printf("metric %s is not required", k)
-		//}
 	}
 	return resultMetrics
 }
 
-func generateCustomMetrics() (models.Metric, models.Metric) {
-	pollCountMetric := models.Metric{
+func generateCustomMetrics(p *models.Metric, r *models.Metric, c *int64) {
+	*c += int64(1)
+	*p = models.Metric{
 		Name:  "PollCount",
 		Type:  "counter",
-		Value: 1,
+		Value: *c,
 	}
-	randomValueMetric := models.Metric{
+	*r = models.Metric{
 		Name:  "RandomValue",
 		Type:  "gauge",
 		Value: rand.Float64(),
 	}
-	return pollCountMetric, randomValueMetric
 }
 
-func GetMetrics(c chan []models.Metric, s time.Duration) {
-	for {
-		// требуемые метрики по заданию
-		runtimeRequiredMetrics := []string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc",
-			"HeapIdle", "HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups",
-			"MCacheInuse", "MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "NumForcedGC",
-			"NumGC", "OtherSys", "PauseTotalNs", "StackInuse", "StackSys", "Sys", "TotalAlloc"}
-		systemMetrics := getSystemMetricsMap()
-		resultMetrics := getRequiredSystemMetrics(systemMetrics, runtimeRequiredMetrics)
+func GetMetrics(c chan []models.Metric, s time.Duration, runtimeRequiredMetrics []string) {
+	pollCounter := int64(0)
+	var pollCountMetric, randomValueMetric models.Metric
 
-		pollCountMetric, randomValueMetric := generateCustomMetrics()
+	for {
+		systemMetrics := getSystemMetrics()
+		resultMetrics := getRequiredSystemMetrics(systemMetrics, runtimeRequiredMetrics)
+		log.Printf("system: %+v", resultMetrics)
+
+		generateCustomMetrics(&pollCountMetric, &randomValueMetric, &pollCounter)
 		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)
-		log.Printf("metrics received\n")
 		select {
 		// если канал пуст - помещаем туда данные
 		case c <- resultMetrics:
+			//log.Printf("sent metrics to the channel")
 		// если в канале уже есть данные
 		default:
+			//log.Printf("read")
+			// вычитываем их
 			<-c
+			//log.Printf("sent")
+			// помещаем туда новые данные
 			c <- resultMetrics
+			//log.Printf("exit")
 		}
 		time.Sleep(s)
 	}

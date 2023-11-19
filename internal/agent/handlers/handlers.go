@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"github.com/aksenk/go-yandex-sprint1-metrics/internal/models"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -24,12 +25,16 @@ func sendMetrics(metrics []models.Metric, serverURL string) error {
 		if err != nil {
 			return err
 		}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
 		err = res.Body.Close()
 		if err != nil {
 			return err
 		}
 		if res.StatusCode != 200 {
-			return fmt.Errorf("unexpected response status code: %v", res.StatusCode)
+			return fmt.Errorf("Unexpected response status code: %v\nError: %v", res.StatusCode, string(body))
 		}
 	}
 	return nil
