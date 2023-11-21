@@ -17,11 +17,7 @@ type MemStorage struct {
 	mu      sync.Mutex
 }
 
-type Storage interface {
-	AddMetric() error
-}
-
-func NewStorage() *MemStorage {
+func Init() *MemStorage {
 	return &MemStorage{
 		Metrics: map[string]models.Metric{},
 	}

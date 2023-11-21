@@ -11,13 +11,15 @@ import (
 func main() {
 	listenAddr := "localhost:8080"
 	listenPath := "/update/"
-	storage := memstorage.NewStorage()
-	s := models.Server{
+	// хз зачем делать объявление переменной тут,
+	// но если в след строчке написать напрямую storage.Storage.Init() - это не работает
+	s := memstorage.Init()
+	srv := models.Server{
 		ListenAddr: listenAddr,
 		ListenURL:  listenPath,
-		Handler:    handlers.UpdateMetric(storage),
+		Handler:    handlers.UpdateMetric(s),
 	}
-	err := server.NewServer(s)
+	err := server.NewServer(srv)
 	if err != nil {
 		log.Fatal(err)
 	}
