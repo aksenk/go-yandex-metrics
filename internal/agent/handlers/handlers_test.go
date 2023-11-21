@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"github.com/aksenk/go-yandex-sprint1-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"

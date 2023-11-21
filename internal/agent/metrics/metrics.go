@@ -2,7 +2,7 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/aksenk/go-yandex-sprint1-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/fatih/structs"
 	"log"
 	"math/rand"
@@ -78,7 +78,7 @@ func GetMetrics(c chan []models.Metric, s time.Duration, runtimeRequiredMetrics 
 	for {
 		systemMetrics := getSystemMetrics()
 		resultMetrics := getRequiredSystemMetrics(systemMetrics, runtimeRequiredMetrics)
-		log.Printf("system: %+v", resultMetrics)
+		//log.Printf("system: %+v", resultMetrics)
 
 		generateCustomMetrics(&pollCountMetric, &randomValueMetric, &pollCounter)
 		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)

@@ -2,13 +2,13 @@ package handlers
 
 import (
 	"fmt"
-	"github.com/aksenk/go-yandex-sprint1-metrics/internal/models"
-	"github.com/aksenk/go-yandex-sprint1-metrics/internal/server/storage"
+	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
 	"net/http"
 	"strings"
 )
 
-func UpdateMetric(storage *storage.MemStorage) http.HandlerFunc {
+func UpdateMetric(storage *memstorage.MemStorage) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodPost {
 			http.Error(res, "Only POST allowed", http.StatusMethodNotAllowed)

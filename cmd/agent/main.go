@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/aksenk/go-yandex-sprint1-metrics/internal/agent/handlers"
-	"github.com/aksenk/go-yandex-sprint1-metrics/internal/agent/metrics"
-	"github.com/aksenk/go-yandex-sprint1-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/agent/handlers"
+	"github.com/aksenk/go-yandex-metrics/internal/agent/metrics"
+	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"time"
 )
 

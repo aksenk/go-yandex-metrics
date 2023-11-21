@@ -1,4 +1,4 @@
-module github.com/aksenk/go-yandex-sprint1-metrics
+module github.com/aksenk/go-yandex-metrics
 
 go 1.21.3
 
