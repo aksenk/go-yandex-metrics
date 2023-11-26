@@ -19,8 +19,8 @@ type Server struct {
 }
 
 func NewMetric(metricName, metricType, metricValue string) (*Metric, error) {
-	var valueErr error = errors.New("incorrect metric value")
-	var typeErr error = errors.New("incorrect metric type")
+	valueErr := errors.New("incorrect metric value")
+	typeErr := errors.New("incorrect metric type")
 	var newMetric Metric
 
 	switch metricType {
