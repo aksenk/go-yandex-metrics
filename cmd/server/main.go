@@ -12,8 +12,8 @@ func main() {
 	listenAddr := "localhost:8080"
 	listenPath := "/update/"
 	// хз зачем делать объявление переменной тут,
-	// но если в след строчке написать напрямую storage.Storage.Init() - это не работает
-	s := memstorage.Init()
+	// но если в след строчке написать напрямую storage.Storage.NewMemStorage() - это не работает
+	s := memstorage.NewMemStorage()
 	srv := models.Server{
 		ListenAddr: listenAddr,
 		ListenURL:  listenPath,
