@@ -145,6 +145,7 @@ func TestUpdateMetric(t *testing.T) {
 			handler(recorder, request)
 			result := recorder.Result()
 			body, err := io.ReadAll(result.Body)
+			result.Body.Close()
 			if err != nil {
 				t.Errorf("Error reading response body: %v", err)
 			}
