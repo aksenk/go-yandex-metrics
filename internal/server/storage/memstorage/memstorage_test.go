@@ -10,22 +10,20 @@ import (
 
 func TestMemStorage_GetMetric(t *testing.T) {
 	tests := []struct {
-		name          string
-		getMetricName string
-		storage       MemStorage
-		want          *models.Metric
-		wantErr       bool
+		name            string
+		getMetricName   string
+		existingMetrics map[string]models.Metric
+		want            *models.Metric
+		wantErr         bool
 	}{
 		{
 			name:          "successful test: get existing metric",
 			getMetricName: "test_metric",
-			storage: MemStorage{
-				Metrics: map[string]models.Metric{
-					"test_metric": models.Metric{
-						Name:  "test_metric",
-						Type:  "gauge",
-						Value: "1",
-					},
+			existingMetrics: map[string]models.Metric{
+				"test_metric": models.Metric{
+					Name:  "test_metric",
+					Type:  "gauge",
+					Value: "1",
 				},
 			},
 			want: &models.Metric{
@@ -36,11 +34,9 @@ func TestMemStorage_GetMetric(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:          "unsuccessful test: get not existing metric",
-			getMetricName: "test_metric",
-			storage: MemStorage{
-				Metrics: map[string]models.Metric{},
-			},
+			name:            "unsuccessful test: get not existing metric",
+			getMetricName:   "test_metric",
+			existingMetrics: map[string]models.Metric{},
 			want: &models.Metric{
 				Name:  "test_metric",
 				Type:  "gauge",
@@ -49,11 +45,9 @@ func TestMemStorage_GetMetric(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:          "unsuccessful test: get unexpected metric with empty name",
-			getMetricName: "",
-			storage: MemStorage{
-				Metrics: map[string]models.Metric{},
-			},
+			name:            "unsuccessful test: get unexpected metric with empty name",
+			getMetricName:   "",
+			existingMetrics: map[string]models.Metric{},
 			want: &models.Metric{
 				Name:  "test_metric",
 				Type:  "gauge",
@@ -62,18 +56,20 @@ func TestMemStorage_GetMetric(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:          "unsuccessful test: get expected metric with empty name",
-			getMetricName: "",
-			storage: MemStorage{
-				Metrics: map[string]models.Metric{},
-			},
-			want:    &models.Metric{},
-			wantErr: true,
+			name:            "unsuccessful test: get expected metric with empty name",
+			getMetricName:   "",
+			existingMetrics: map[string]models.Metric{},
+			want:            &models.Metric{},
+			wantErr:         true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, err := tt.storage.GetMetric(tt.getMetricName)
+			storage := MemStorage{
+				Metrics: tt.existingMetrics,
+				mu:      sync.Mutex{},
+			}
+			m, err := storage.GetMetric(tt.getMetricName)
 			if !tt.wantErr {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, m)
