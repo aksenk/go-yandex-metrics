@@ -46,7 +46,7 @@ func HandleMetrics(metricsChan chan []models.Metric, ticker *time.Ticker, server
 		resultMetrics := <-metricsChan
 		err := sendMetrics(resultMetrics, serverURL)
 		if err != nil {
-			log.Printf("Can not send metrics: %s\n", err)
+			log.Printf("Can not send handlers: %s\n", err)
 			continue
 		}
 		log.Printf("Metrics have been sent successfully\n")

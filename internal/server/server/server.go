@@ -5,9 +5,11 @@ import (
 	"net/http"
 )
 
+// шляпа какая-то, но не знаю как по другому сделать
+// вообще если честно хз зачем это в отдельный модуль выносить
+// и как тестировать в такой отстойной реализации
 func NewServer(s models.Server) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc(s.ListenURL, s.Handler)
-	// TODO шляпа какая-то, но пока хз как по другому сделать
 	return http.ListenAndServe(s.ListenAddr, mux)
 }

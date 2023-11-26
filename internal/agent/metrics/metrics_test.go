@@ -51,7 +51,7 @@ func Test_generateCustomMetrics(t *testing.T) {
 
 func Test_getSystemMetrics(t *testing.T) {
 	metrics := getSystemMetrics()
-	assert.Contains(t, metrics, "Alloc", "The system metrics is not contains 'Alloc' metric")
+	assert.Contains(t, metrics, "Alloc", "The system handlers is not contains 'Alloc' metric")
 }
 
 func Test_convertToFloat64(t *testing.T) {
@@ -165,11 +165,11 @@ func Test_getRequiredSystemMetrics(t *testing.T) {
 				}
 			}
 			if !tt.wantErr {
-				assert.Truef(t, isEq, "Incorrect result metrics map\n"+
+				assert.Truef(t, isEq, "Incorrect result handlers map\n"+
 					"The maps must be equal\nWant: %+v\nGot: %+v",
 					tt.want, resultMetrics)
 			} else {
-				assert.Falsef(t, isEq, "Incorrect result metrics map\n"+
+				assert.Falsef(t, isEq, "Incorrect result handlers map\n"+
 					"The maps don't have to be equal\nWant: %+v\nGot: %+v",
 					tt.want, resultMetrics)
 			}

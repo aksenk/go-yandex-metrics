@@ -85,7 +85,7 @@ func GetMetrics(c chan []models.Metric, s time.Duration, runtimeRequiredMetrics 
 		select {
 		// если канал пуст - помещаем туда данные
 		case c <- resultMetrics:
-			//log.Printf("sent metrics to the channel")
+			//log.Printf("sent handlers to the channel")
 		// если в канале уже есть данные
 		default:
 			//log.Printf("read")
