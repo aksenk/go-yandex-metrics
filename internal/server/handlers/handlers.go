@@ -5,8 +5,32 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"net/http"
+	"time"
 )
+
+func NewRouter(s storage.Storager) chi.Router {
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RequestID)
+	r.Use(middleware.Timeout(10 * time.Second))
+	r.Get("/update", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}))
+	// TODO вынести работу со storage в middleware?
+	r.Route("/update", func(r chi.Router) {
+
+		r.Post("/", UpdateMetric(s))
+		r.Post("/{type}/", UpdateMetric(s))
+		r.Post("/{type}/{name}/", UpdateMetric(s))
+		r.Post("/{type}/{name}/{value}", UpdateMetric(s))
+	})
+	r.Get("/value/{type}/{name}", GetMetric(s))
+	return r
+}
 
 func GetMetric(storage storage.Storager) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {

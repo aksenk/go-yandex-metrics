@@ -2,19 +2,13 @@ package handlers
 
 import (
 	"github.com/aksenk/go-yandex-metrics/internal/models"
-	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
-
-// кажется где-то тут кроются сакральные знания о интерфейсах
-// я теперь могу замокать хранилище и прогнать тесты независимо
-// но ряд кейсов (где валидируются входящие данные) я теперь проверить не могу
-// а может это и не там совсем должно проверяться?
-// в целом валидация данных это не проблемы сохраняющей функции
 
 type MemStorageDummy struct {
 	Dummy string
@@ -43,7 +37,7 @@ func TestUpdateMetric(t *testing.T) {
 			wantCode: 405,
 			args: args{
 				method: "GET",
-				path:   "/kek",
+				path:   "/update/",
 			},
 		},
 		{
@@ -56,7 +50,7 @@ func TestUpdateMetric(t *testing.T) {
 		},
 		{
 			name:     "POST request unsuccessful: only update path",
-			wantCode: 404,
+			wantCode: 400,
 			args: args{
 				method: "POST",
 				path:   "/update/",
@@ -128,25 +122,18 @@ func TestUpdateMetric(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		// TODO кажется это должно быть не так?
-		storage := storage.Storager(MemStorageDummy{})
+		storage := &MemStorageDummy{}
 		t.Run(tt.name, func(t *testing.T) {
-			//recorder := httptest.NewRecorder()
-			handler := http.HandlerFunc(UpdateMetric(&storage))
+			handler := NewRouter(storage)
 			server := httptest.NewServer(handler)
-			request := httptest.NewRequest(tt.args.method, tt.args.path, nil)
-			//handler := UpdateMetric(tt.args.storage)
-			//handler(recorder, request)
-			result := recorder.Result()
+			request, err := http.NewRequest(tt.args.method, server.URL+tt.args.path, nil)
+			require.NoError(t, err)
+			result, err := server.Client().Do(request)
+			require.NoError(t, err)
 			body, err := io.ReadAll(result.Body)
+			require.NoError(t, err)
 			result.Body.Close()
-			if err != nil {
-				t.Errorf("Error reading response body: %v", err)
-			}
 			assert.Equalf(t, tt.wantCode, result.StatusCode, "Response: %v", string(body))
-			//if got := UpdateMetric(tt.args.storage); !reflect.DeepEqual(got, tt.want) {
-			//	t.Errorf("UpdateMetric() = %v, want %v", got, tt.want)
-			//}
 		})
 	}
 }

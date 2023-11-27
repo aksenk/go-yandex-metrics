@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/aksenk/go-yandex-metrics/internal/server/server"
+	"github.com/aksenk/go-yandex-metrics/internal/server/handlers"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
 	"net/http"
 )
@@ -10,6 +10,6 @@ import (
 func main() {
 	listenAddr := "localhost:8080"
 	s := memstorage.NewMemStorage()
-	r := server.NewRouter(s)
+	r := handlers.NewRouter(s)
 	http.ListenAndServe(listenAddr, r)
 }
