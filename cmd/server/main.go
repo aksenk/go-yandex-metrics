@@ -1,16 +1,15 @@
 package main
 
 import (
-	"github.com/aksenk/go-yandex-metrics/internal/server/handlers"
+	"github.com/aksenk/go-yandex-metrics/internal/server/server"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
 	"net/http"
 )
 
+// TODO как запускать тесты сразу по всем директориям?
 func main() {
 	listenAddr := "localhost:8080"
-	listenPath := "/update/"
 	s := memstorage.NewMemStorage()
-	mux := http.NewServeMux()
-	mux.HandleFunc(listenPath, handlers.UpdateMetric(s))
-	http.ListenAndServe(listenAddr, mux)
+	r := server.NewRouter(s)
+	http.ListenAndServe(listenAddr, r)
 }

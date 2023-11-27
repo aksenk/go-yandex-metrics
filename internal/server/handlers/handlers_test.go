@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
@@ -28,9 +30,8 @@ func (m MemStorageDummy) GetMetric(name string) (*models.Metric, error) {
 
 func TestUpdateMetric(t *testing.T) {
 	type args struct {
-		storage MemStorageDummy
-		method  string
-		url     string
+		method string
+		path   string
 	}
 	tests := []struct {
 		name     string
@@ -41,108 +42,101 @@ func TestUpdateMetric(t *testing.T) {
 			name:     "GET request unsuccessful",
 			wantCode: 405,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "GET",
-				url:     "http://localhost/kek",
+				method: "GET",
+				path:   "/kek",
 			},
 		},
 		{
 			name:     "POST request unsuccessful: no URL path",
 			wantCode: 404,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/",
+				method: "POST",
+				path:   "/",
 			},
 		},
 		{
 			name:     "POST request unsuccessful: only update path",
 			wantCode: 404,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/update/",
+				method: "POST",
+				path:   "/update/",
 			},
 		},
 		{
 			name:     "POST request unsuccessful: metric type path",
 			wantCode: 404,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/update/gauge/",
+				method: "POST",
+				path:   "/update/gauge/",
 			},
 		},
 		{
 			name:     "POST request unsuccessful: metric type + metric name path",
 			wantCode: 400,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/update/gauge/kek/",
+				method: "POST",
+				path:   "/update/gauge/kek/",
 			},
 		},
 		{
 			name:     "POST request successful: gauge value with dot",
 			wantCode: 200,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/update/gauge/name/1.1",
+				method: "POST",
+				path:   "/update/gauge/name/1.1",
 			},
 		},
 		{
 			name:     "POST request successful: gauge value without dot",
 			wantCode: 200,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/update/gauge/name/1",
+				method: "POST",
+				path:   "/update/gauge/name/1",
 			},
 		},
 		{
 			name:     "POST request successful: switch metric type from gauge to counter",
 			wantCode: 200,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/update/counter/name/1",
+				method: "POST",
+				path:   "/update/counter/name/1",
 			},
 		},
 		{
 			name:     "POST request unsuccessful: counter float",
 			wantCode: 400,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/update/counter/name/1.1",
+				method: "POST",
+				path:   "/update/counter/name/1.1",
 			},
 		},
 		{
 			name:     "POST request unsuccessful: incorrect metric type",
 			wantCode: 400,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/update/gauges/name/1",
+				method: "POST",
+				path:   "/update/gauges/name/1",
 			},
 		},
 		{
 			name:     "POST request successful: switch metric type from counter to gauge",
 			wantCode: 200,
 			args: args{
-				storage: MemStorageDummy{},
-				method:  "POST",
-				url:     "http://localhost/update/gauge/name/111.123",
+				method: "POST",
+				path:   "/update/gauge/name/111.123",
 			},
 		},
 	}
 	for _, tt := range tests {
+		// TODO кажется это должно быть не так?
+		storage := storage.Storager(MemStorageDummy{})
 		t.Run(tt.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			request := httptest.NewRequest(tt.args.method, tt.args.url, nil)
-			handler := UpdateMetric(tt.args.storage)
-			handler(recorder, request)
+			//recorder := httptest.NewRecorder()
+			handler := http.HandlerFunc(UpdateMetric(&storage))
+			server := httptest.NewServer(handler)
+			request := httptest.NewRequest(tt.args.method, tt.args.path, nil)
+			//handler := UpdateMetric(tt.args.storage)
+			//handler(recorder, request)
 			result := recorder.Result()
 			body, err := io.ReadAll(result.Body)
 			result.Body.Close()
