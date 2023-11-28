@@ -17,12 +17,16 @@ func NewRouter(s storage.Storager) chi.Router {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Timeout(10 * time.Second))
 	r.Get("/update", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.WriteHeader(http.StatusInternalServerError)
+		writer.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}))
+	r.Route("/value", func(r chi.Router) {
+		r.Get("/", GetMetric(s))
+		r.Get("/{type}/", GetMetric(s))
+		r.Get("/{type}/{name}", GetMetric(s))
+	})
 	// TODO вынести работу со storage в middleware?
 	r.Route("/update", func(r chi.Router) {
-
 		r.Post("/", UpdateMetric(s))
 		r.Post("/{type}/", UpdateMetric(s))
 		r.Post("/{type}/{name}/", UpdateMetric(s))
@@ -33,37 +37,50 @@ func NewRouter(s storage.Storager) chi.Router {
 }
 
 func GetMetric(storage storage.Storager) http.HandlerFunc {
-	return func(writer http.ResponseWriter, request *http.Request) {
+	return func(res http.ResponseWriter, req *http.Request) {
+		metricType := chi.URLParam(req, "type")
+		metricName := chi.URLParam(req, "name")
+		if metricType == "" {
+			http.Error(res, "Missing metric type", http.StatusBadRequest)
+			return
+		}
+		if metricName == "" {
+			http.Error(res, "Missing metric name", http.StatusNotFound)
+			return
+		}
+		metric, err := storage.GetMetric(metricName)
+		if err != nil {
+			http.Error(res, fmt.Sprintf("Error receiving metric: %v", err), http.StatusNotFound)
+			return
+		}
+		responseText := fmt.Sprintf("%v\n", metric.Value)
+		res.Write([]byte(responseText))
 		return
 	}
 }
 
 func UpdateMetric(storage storage.Storager) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodPost {
-			http.Error(res, "Only POST allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		rawMetricType := chi.URLParam(req, "type")
-		rawMetricName := chi.URLParam(req, "name")
-		rawMetricValue := chi.URLParam(req, "value")
+		metricType := chi.URLParam(req, "type")
+		metricName := chi.URLParam(req, "name")
+		metricValue := chi.URLParam(req, "value")
 
-		if rawMetricType == "" {
+		if metricType == "" {
 			http.Error(res, "Missing metric type", http.StatusBadRequest)
 			return
 		}
-		if rawMetricName == "" {
+		if metricName == "" {
 			http.Error(res, "Missing metric name", http.StatusNotFound)
 			return
 		}
-		if rawMetricValue == "" {
+		if metricValue == "" {
 			http.Error(res, "Missing metric value", http.StatusBadRequest)
 			return
 		}
 
-		newMetric, err := models.NewMetric(rawMetricName, rawMetricType, rawMetricValue)
+		newMetric, err := models.NewMetric(metricName, metricType, metricValue)
 		if err != nil {
-			http.Error(res, fmt.Sprintf("Error handling '%v' metric: %v", rawMetricName, err),
+			http.Error(res, fmt.Sprintf("Error handling '%v' metric: %v", metricName, err),
 				http.StatusBadRequest)
 			return
 		}
@@ -71,8 +88,8 @@ func UpdateMetric(storage storage.Storager) http.HandlerFunc {
 		var newCounterValue int64
 		var oldCounterValue int64
 
-		if rawMetricType == "counter" {
-			if currentMetric, err := storage.GetMetric(rawMetricName); err == nil {
+		if metricType == "counter" {
+			if currentMetric, err := storage.GetMetric(metricName); err == nil {
 				if currentMetric.Type == "counter" {
 					oldCounterValue = currentMetric.Value.(int64)
 					newCounterValue = newMetric.Value.(int64)
