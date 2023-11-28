@@ -4,18 +4,20 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 )
 
-//type Saver interface {
-//	SaveMetric(metric *models.Metric) error
-//}
-//
-//type Getter interface {
-//	GetMetric(name string) (*models.Metric, error)
-//}
+type MetricSaver interface {
+	SaveMetric(metric *models.Metric) error
+}
+
+type MetricGetter interface {
+	GetMetric(name string) (*models.Metric, error)
+}
+
+type AllMetricsGetter interface {
+	GetAllMetrics() map[string]models.Metric
+}
 
 type Storager interface {
-	SaveMetric(metric *models.Metric) error
-	GetMetric(name string) (*models.Metric, error)
-	// TODO вроде правильно делать так? но не работает
-	//Saver
-	//Getter
+	MetricSaver
+	MetricGetter
+	AllMetricsGetter
 }

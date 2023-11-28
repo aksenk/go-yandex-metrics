@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -15,11 +16,10 @@ func NewRouter(s storage.Storager) chi.Router {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
+	r.Use(middleware.Timeout(time.Second * 5))
 	r.Use(middleware.Timeout(10 * time.Second))
-	r.Get("/update", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}))
+	r.Get("/", ListAllMetrics(s))
+	// TODO почему-то в ответе дублируется текст "Allow: POST" например при запросе GET /update/
 	r.Route("/value", func(r chi.Router) {
 		r.Get("/", GetMetric(s))
 		r.Get("/{type}/", GetMetric(s))
@@ -34,6 +34,20 @@ func NewRouter(s storage.Storager) chi.Router {
 	})
 	r.Get("/value/{type}/{name}", GetMetric(s))
 	return r
+}
+
+func ListAllMetrics(storage storage.Storager) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		var list []string
+		allMetrics := storage.GetAllMetrics()
+		for _, v := range allMetrics {
+			list = append(list, fmt.Sprintf("%v=%v", v.Name, v.Value))
+		}
+		r := fmt.Sprintf("<html><head><title>all metrics</title></head>"+
+			"<body><h1>List of all metrics</h1><p>%v</p></body></html>\n", strings.Join(list, "</p><p>"))
+		writer.Header().Set("Content-type", "text/html")
+		writer.Write([]byte(r))
+	}
 }
 
 func GetMetric(storage storage.Storager) http.HandlerFunc {

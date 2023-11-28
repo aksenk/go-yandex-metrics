@@ -38,3 +38,9 @@ func (s *MemStorage) GetMetric(name string) (*models.Metric, error) {
 	}
 	return &models.Metric{}, notExistErr
 }
+
+func (s *MemStorage) GetAllMetrics() map[string]models.Metric {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Metrics
+}

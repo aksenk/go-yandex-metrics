@@ -23,6 +23,10 @@ func (m MemStorageDummy) GetMetric(name string) (*models.Metric, error) {
 	return &models.Metric{}, nil
 }
 
+func (m MemStorageDummy) GetAllMetrics() map[string]models.Metric {
+	return make(map[string]models.Metric)
+}
+
 func TestUpdateMetric(t *testing.T) {
 	type args struct {
 		method string
@@ -39,14 +43,6 @@ func TestUpdateMetric(t *testing.T) {
 			args: args{
 				method: "GET",
 				path:   "/update/",
-			},
-		},
-		{
-			name:     "POST request unsuccessful: no URL path",
-			wantCode: 404,
-			args: args{
-				method: "POST",
-				path:   "/",
 			},
 		},
 		{
@@ -145,7 +141,7 @@ func TestGetMetric(t *testing.T) {
 		storageMetrics map[string]models.Metric
 		requestURL     string
 		wantCode       int
-		wantText       string
+		wantBody       string
 	}{
 		{
 			name: "successful test: gauge",
@@ -158,7 +154,7 @@ func TestGetMetric(t *testing.T) {
 			},
 			requestURL: "/value/gauge/test",
 			wantCode:   200,
-			wantText:   "10.123\n",
+			wantBody:   "10.123\n",
 		},
 		{
 			name: "successful test: counter",
@@ -171,7 +167,7 @@ func TestGetMetric(t *testing.T) {
 			},
 			requestURL: "/value/counter/test",
 			wantCode:   200,
-			wantText:   "5\n",
+			wantBody:   "5\n",
 		},
 		{
 			name: "unsuccessful test: gauge",
@@ -184,7 +180,7 @@ func TestGetMetric(t *testing.T) {
 			},
 			requestURL: "/value/counter/test",
 			wantCode:   404,
-			wantText:   "Error receiving metric: metric not found\n",
+			wantBody:   "Error receiving metric: metric not found\n",
 		},
 		{
 			name: "unsuccessful test: counter",
@@ -197,42 +193,42 @@ func TestGetMetric(t *testing.T) {
 			},
 			requestURL: "/value/gauge/test",
 			wantCode:   404,
-			wantText:   "Error receiving metric: metric not found\n",
+			wantBody:   "Error receiving metric: metric not found\n",
 		},
 		{
 			name:           "unsuccessful test: without metric type",
 			storageMetrics: map[string]models.Metric{},
 			requestURL:     "/value/",
 			wantCode:       400,
-			wantText:       "Missing metric type\n",
+			wantBody:       "Missing metric type\n",
 		},
 		{
 			name:           "unsuccessful test: without metric name",
 			storageMetrics: map[string]models.Metric{},
 			requestURL:     "/value/gauge/",
 			wantCode:       404,
-			wantText:       "Missing metric name\n",
+			wantBody:       "Missing metric name\n",
 		},
 		{
 			name:           "unsuccessful test: with a slash at the end",
 			storageMetrics: map[string]models.Metric{},
 			requestURL:     "/value/gauge/test/",
 			wantCode:       404,
-			wantText:       "404 page not found\n",
+			wantBody:       "404 page not found\n",
 		},
 		{
 			name:           "unsuccessful test: missing gauge metric",
 			storageMetrics: map[string]models.Metric{},
 			requestURL:     "/value/gauge/test",
 			wantCode:       404,
-			wantText:       "Error receiving metric: metric not found\n",
+			wantBody:       "Error receiving metric: metric not found\n",
 		},
 		{
 			name:           "unsuccessful test: missing counter metric",
 			storageMetrics: map[string]models.Metric{},
 			requestURL:     "/value/counter/test",
 			wantCode:       404,
-			wantText:       "Error receiving metric: metric not found\n",
+			wantBody:       "Error receiving metric: metric not found\n",
 		},
 	}
 	for _, tt := range tests {
@@ -242,13 +238,78 @@ func TestGetMetric(t *testing.T) {
 			}
 			server := httptest.NewServer(NewRouter(storage))
 			response, err := server.Client().Get(server.URL + tt.requestURL)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			body, err := io.ReadAll(response.Body)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			err = response.Body.Close()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantCode, response.StatusCode)
-			assert.Equal(t, tt.wantText, string(body))
+			assert.Equal(t, tt.wantBody, string(body))
+		})
+	}
+}
+
+func TestListAllMetrics(t *testing.T) {
+	tests := []struct {
+		name     string
+		metrics  map[string]models.Metric
+		wantCode int
+		wantBody string
+	}{
+		{
+			name:     "successful test: no metrics",
+			metrics:  map[string]models.Metric{},
+			wantCode: 200,
+			wantBody: "<html><head><title>all metrics</title></head>" +
+				"<body><h1>List of all metrics</h1><p></p></body></html>\n",
+		},
+		{
+			name: "successful test: one metric",
+			metrics: map[string]models.Metric{
+				"test": {
+					Name:  "test",
+					Type:  "gauge",
+					Value: float64(11),
+				},
+			},
+			wantCode: 200,
+			wantBody: "<html><head><title>all metrics</title></head>" +
+				"<body><h1>List of all metrics</h1><p>test=11</p></body></html>\n",
+		},
+		{
+			name: "successful test: two metric",
+			metrics: map[string]models.Metric{
+				"test": {
+					Name:  "test",
+					Type:  "gauge",
+					Value: float64(11),
+				},
+				"test2": {
+					Name:  "test2",
+					Type:  "counter",
+					Value: int64(1),
+				},
+			},
+			wantCode: 200,
+			wantBody: "<html><head><title>all metrics</title></head>" +
+				"<body><h1>List of all metrics</h1><p>test=11</p><p>test2=1</p></body></html>\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := &memstorage.MemStorage{
+				Metrics: tt.metrics,
+			}
+			server := httptest.NewServer(ListAllMetrics(storage))
+			response, err := server.Client().Get(server.URL + "/")
+			require.NoError(t, err)
+			body, err := io.ReadAll(response.Body)
+			require.NoError(t, err)
+			stringBody := string(body)
+			err = response.Body.Close()
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCode, response.StatusCode)
+			assert.Equal(t, tt.wantBody, stringBody)
 		})
 	}
 }
