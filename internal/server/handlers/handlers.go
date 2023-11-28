@@ -53,6 +53,10 @@ func GetMetric(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, fmt.Sprintf("Error receiving metric: %v", err), http.StatusNotFound)
 			return
 		}
+		if metric.Type != metricType {
+			http.Error(res, "Error receiving metric: metric not found", http.StatusNotFound)
+			return
+		}
 		responseText := fmt.Sprintf("%v\n", metric.Value)
 		res.Write([]byte(responseText))
 		return

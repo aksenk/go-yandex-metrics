@@ -30,7 +30,7 @@ func (s *MemStorage) SaveMetric(m *models.Metric) error {
 }
 
 func (s *MemStorage) GetMetric(name string) (*models.Metric, error) {
-	notExistErr := errors.New("metric does not exist")
+	notExistErr := errors.New("metric not found")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if metric, ok := s.Metrics[name]; ok {
