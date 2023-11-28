@@ -266,33 +266,33 @@ func TestListAllMetrics(t *testing.T) {
 		{
 			name: "successful test: one metric",
 			metrics: map[string]models.Metric{
-				"test": {
-					Name:  "test",
+				"first": {
+					Name:  "first",
 					Type:  "gauge",
-					Value: float64(11),
+					Value: float64(1),
 				},
 			},
 			wantCode: 200,
 			wantBody: "<html><head><title>all metrics</title></head>" +
-				"<body><h1>List of all metrics</h1><p>test=11</p></body></html>\n",
+				"<body><h1>List of all metrics</h1><p>first=1</p></body></html>\n",
 		},
 		{
 			name: "successful test: two metric",
 			metrics: map[string]models.Metric{
-				"test": {
-					Name:  "test",
+				"first": {
+					Name:  "first",
 					Type:  "gauge",
-					Value: float64(11),
+					Value: float64(1),
 				},
-				"test2": {
-					Name:  "test2",
+				"second": {
+					Name:  "second",
 					Type:  "counter",
-					Value: int64(1),
+					Value: int64(2),
 				},
 			},
 			wantCode: 200,
 			wantBody: "<html><head><title>all metrics</title></head>" +
-				"<body><h1>List of all metrics</h1><p>test=11</p><p>test2=1</p></body></html>\n",
+				"<body><h1>List of all metrics</h1><p>first=1</p><p>second=2</p></body></html>\n",
 		},
 	}
 	for _, tt := range tests {

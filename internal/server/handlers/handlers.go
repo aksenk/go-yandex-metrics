@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 )
@@ -43,6 +44,7 @@ func ListAllMetrics(storage storage.Storager) http.HandlerFunc {
 		for _, v := range allMetrics {
 			list = append(list, fmt.Sprintf("%v=%v", v.Name, v.Value))
 		}
+		slices.Sort(list)
 		r := fmt.Sprintf("<html><head><title>all metrics</title></head>"+
 			"<body><h1>List of all metrics</h1><p>%v</p></body></html>\n", strings.Join(list, "</p><p>"))
 		writer.Header().Set("Content-type", "text/html")
@@ -73,7 +75,6 @@ func GetMetric(storage storage.Storager) http.HandlerFunc {
 		}
 		responseText := fmt.Sprintf("%v\n", metric.Value)
 		res.Write([]byte(responseText))
-		return
 	}
 }
 
