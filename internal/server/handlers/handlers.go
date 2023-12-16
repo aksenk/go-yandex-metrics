@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/server/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -14,11 +15,10 @@ import (
 
 func NewRouter(s storage.Storager) chi.Router {
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	r.Use(logger.Middleware)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Timeout(time.Second * 5))
-	r.Use(middleware.Timeout(10 * time.Second))
 	r.Get("/", ListAllMetrics(s))
 	// TODO почему-то в ответе дублируется текст "Allow: POST" например при запросе GET /update/
 	r.Route("/value", func(r chi.Router) {
@@ -49,6 +49,7 @@ func ListAllMetrics(storage storage.Storager) http.HandlerFunc {
 			"<body><h1>List of all metrics</h1><p>%v</p></body></html>\n", strings.Join(list, "</p><p>"))
 		writer.Header().Set("Content-type", "text/html")
 		writer.Write([]byte(r))
+		writer.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -75,6 +76,7 @@ func GetMetric(storage storage.Storager) http.HandlerFunc {
 		}
 		responseText := fmt.Sprintf("%v\n", metric.Value)
 		res.Write([]byte(responseText))
+		res.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -127,5 +129,7 @@ func UpdateMetric(storage storage.Storager) http.HandlerFunc {
 		res.Write([]byte(fmt.Sprintf("Metric saved successfully\ntype: %v, name: %v, value: %v\n",
 			newMetric.Type, newMetric.Name, newMetric.Value)))
 		res.Write([]byte(fmt.Sprintf("%+v\n", storage)))
+		res.WriteHeader(http.StatusOK)
+
 	}
 }

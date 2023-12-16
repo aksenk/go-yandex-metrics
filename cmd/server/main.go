@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"github.com/aksenk/go-yandex-metrics/internal/server/handlers"
+	"github.com/aksenk/go-yandex-metrics/internal/server/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
-	"log"
 	"net/http"
 	"os"
 )
@@ -16,11 +16,10 @@ func main() {
 	if e := os.Getenv("ADDRESS"); e != "" {
 		listenAddr = &e
 	}
-
 	s := memstorage.NewMemStorage()
 	r := handlers.NewRouter(s)
-	log.Printf("Starting web server on %v", *listenAddr)
+	logger.Log.Infof("Starting web server on %v", *listenAddr)
 	if err := http.ListenAndServe(*listenAddr, r); err != nil {
-		log.Fatalf("Error starting server: %v", err)
+		logger.Log.Fatalf("Error starting server: %v", err)
 	}
 }
