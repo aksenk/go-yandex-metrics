@@ -11,6 +11,7 @@ import (
 
 // TODO просто вопрос: как запускать тесты сразу по всем директориям?
 func main() {
+	log := logger.Log
 	listenAddr := flag.String("a", "localhost:8080", "host:port for server listening")
 	flag.Parse()
 	if e := os.Getenv("ADDRESS"); e != "" {
@@ -18,8 +19,8 @@ func main() {
 	}
 	s := memstorage.NewMemStorage()
 	r := handlers.NewRouter(s)
-	logger.Log.Infof("Starting web server on %v", *listenAddr)
+	log.Infof("Starting web server on %v", *listenAddr)
 	if err := http.ListenAndServe(*listenAddr, r); err != nil {
-		logger.Log.Fatalf("Error starting server: %v", err)
+		log.Fatalf("Error starting server: %v", err)
 	}
 }
