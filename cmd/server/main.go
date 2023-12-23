@@ -1,10 +1,12 @@
 package main
 
 import (
+	_ "encoding/json"
 	"flag"
 	"github.com/aksenk/go-yandex-metrics/internal/server/handlers"
 	"github.com/aksenk/go-yandex-metrics/internal/server/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
+	_ "github.com/mailru/easyjson"
 	"net/http"
 	"os"
 )
