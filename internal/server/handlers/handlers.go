@@ -86,9 +86,20 @@ func GetMetric(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, "Error receiving metric: metric not found", http.StatusNotFound)
 			return
 		}
-		responseText := fmt.Sprintf("%v\n", metric.Value)
+		var responseText string
+		var responseCode int
+		if metric.MType == "counter" {
+			responseText = fmt.Sprintf("%v\n", *metric.Delta)
+			responseCode = http.StatusOK
+		} else if metric.MType == "gauge" {
+			responseText = fmt.Sprintf("%v\n", *metric.Value)
+			responseCode = http.StatusOK
+		} else {
+			responseText = fmt.Sprintf("Unknown metric type\n")
+			responseCode = http.StatusBadRequest
+		}
 		res.Write([]byte(responseText))
-		res.WriteHeader(http.StatusOK)
+		res.WriteHeader(responseCode)
 	}
 }
 
