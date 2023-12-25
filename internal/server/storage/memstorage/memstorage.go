@@ -22,11 +22,11 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
-func (s *MemStorage) SaveMetric(m *models.Metric) error {
+func (s *MemStorage) SaveMetric(m models.Metric) error {
 	// TODO а ничего что нету нигде проверок на установленный лок?
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Metrics[m.Name] = *m
+	s.Metrics[m.ID] = m
 	return nil
 }
 

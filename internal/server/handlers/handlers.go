@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/aksenk/go-yandex-metrics/internal/server/logger"
@@ -33,6 +32,7 @@ func NewRouter(s storage.Storager) chi.Router {
 	// TODO вынести работу со storage в middleware?
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/", JSONUpdaterHandler(s))
+		// TODO вернуть
 		r.Post("/{type}/", ParamsUpdaterHandler(s))
 		r.Post("/{type}/{name}/", ParamsUpdaterHandler(s))
 		r.Post("/{type}/{name}/{value}", ParamsUpdaterHandler(s))
@@ -46,7 +46,15 @@ func ListAllMetrics(storage storage.Storager) http.HandlerFunc {
 		var list []string
 		allMetrics := storage.GetAllMetrics()
 		for _, v := range allMetrics {
-			list = append(list, fmt.Sprintf("%v=%v", v.Name, v.Value))
+			if v.MType == "gauge" {
+				list = append(list, fmt.Sprintf("%v=%v", v.ID, *v.Value))
+
+			} else if v.MType == "counter" {
+				list = append(list, fmt.Sprintf("%v=%v", v.ID, *v.Delta))
+			} else {
+				logger.Log.Errorf("Unknown metric type '%v' for metric '%v' when getting all the metrics",
+					v.MType, v.ID)
+			}
 		}
 		slices.Sort(list)
 		r := fmt.Sprintf("<html><head><title>all metrics</title></head>"+
@@ -74,7 +82,7 @@ func GetMetric(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, fmt.Sprintf("Error receiving metric: %v", err), http.StatusNotFound)
 			return
 		}
-		if metric.Type != metricType {
+		if metric.MType != metricType {
 			http.Error(res, "Error receiving metric: metric not found", http.StatusNotFound)
 			return
 		}
@@ -84,32 +92,19 @@ func GetMetric(storage storage.Storager) http.HandlerFunc {
 	}
 }
 
-func UpdateMetric(metricType, metricName, metricValue string, storage storage.Storager) (any, error) {
-	newMetric, err := models.NewMetric(metricName, metricType, metricValue)
-	if err != nil {
-		return "", errors.New(fmt.Sprintf("error сreating new metric: %v", err))
-	}
-
-	var newCounterValue int64
-	var oldCounterValue int64
-
-	if metricType == "counter" {
-		if currentMetric, err := storage.GetMetric(metricName); err == nil {
-			if currentMetric.Type == "counter" {
-				oldCounterValue = currentMetric.Value.(int64)
-				newCounterValue = newMetric.Value.(int64)
-				newCounterValue += oldCounterValue
-				newMetric.Value = newCounterValue
+func UpdateMetric(metric models.Metric, storage storage.Storager) (models.Metric, error) {
+	newMetric := metric
+	if metric.MType == "counter" {
+		if currentMetric, err := storage.GetMetric(metric.ID); err == nil {
+			if currentMetric.MType == "counter" {
+				*newMetric.Delta = *newMetric.Delta + *currentMetric.Delta
 			}
 		}
 	}
-	if err := storage.SaveMetric(newMetric); err != nil {
-		return "", err
+	if err := storage.SaveMetric(metric); err != nil {
+		return models.Metric{}, err
 	}
-	if metricType == "counter" {
-		return newCounterValue, nil
-	}
-	return metricValue, nil
+	return newMetric, nil
 }
 
 func ParamsUpdaterHandler(storage storage.Storager) http.HandlerFunc {
@@ -130,7 +125,42 @@ func ParamsUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, "Missing metric value", http.StatusBadRequest)
 			return
 		}
-		UpdateMetric(metricType, metricName, metricValue, storage)
+		var metric models.Metric
+		if metricType == "counter" {
+			if newValue, err := strconv.ParseInt(metricValue, 10, 64); err == nil {
+				metric = models.Metric{
+					ID:    metricName,
+					MType: metricType,
+					Delta: &newValue,
+				}
+			} else {
+				http.Error(res, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if metricType == "gauge" {
+			if newValue, err := strconv.ParseFloat(metricValue, 64); err == nil {
+				metric = models.Metric{
+					ID:    metricName,
+					MType: metricType,
+					Value: &newValue,
+				}
+			} else {
+				http.Error(res, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			logger.Log.Infof("Unknown metric type")
+			http.Error(res, "Unknown metric type. Should be 'gauge' or 'counter'", http.StatusBadRequest)
+			return
+		}
+		newMetric, err := UpdateMetric(metric, storage)
+		if err != nil {
+			logger.Log.Errorf("Error updating metric: %v", err)
+			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
+			return
+		}
+		res.Write([]byte(fmt.Sprintf("Updated metric: %+v", newMetric)))
+		res.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -141,7 +171,7 @@ func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, "Header 'Content-Type: application/json' is required", http.StatusBadRequest)
 			return
 		}
-		var receivedMetric models.Metrics
+		var receivedMetric models.Metric
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
 			http.Error(res, fmt.Sprintf("Error reading body: %v", err), http.StatusBadRequest)
@@ -171,36 +201,23 @@ func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, "Unknown value of field 'type'. Should be 'gauge' or 'counter'", http.StatusBadRequest)
 			return
 		}
-		//responseMetric := receivedMetric
 
-		if receivedMetric.MType == "gauge" {
-			// TODO !!!!!!!!!!
-			// TODO !!!!!!!!!!
-			// TODO !!!!!!!!!!
-			// TODO !!!!!!!!!!
-			// TODO поставил сюда delta тк float64 не хочет конвертироваться в строку, а интернета нету чтобы разобраться
-			//UpdateMetric(receivedMetric.MType, receivedMetric.ID, string(*receivedMetric.Delta), storage)
-			// TODO !!!!!!!!!!
-			// TODO !!!!!!!!!!
-			// TODO !!!!!!!!!!
-			// TODO !!!!!!!!!!
-			// TODO !!!!!!!!!!
-			// TODO !!!!!!!!!!
-			// TODO !!!!!!!!!!
+		newMetric, err := UpdateMetric(receivedMetric, storage)
+		if err != nil {
 
-		} else if receivedMetric.MType == "counter" {
-			// TODO загуглить нормальный вариант конвертации int64 в string
-			kkk := strconv.Itoa(int(*receivedMetric.Delta))
-			//kkk := string(receivedMetric.Delta)
-			logger.Log.Info(kkk)
-			//newValue, err := UpdateMetric(receivedMetric.MType, receivedMetric.ID, kkk, storage)
-			if err != nil {
-				http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusBadRequest)
-				return
-			}
+			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
+			return
 		}
-		res.Write([]byte(fmt.Sprintf("Metric saved successfully\n")))
-		res.Write([]byte(fmt.Sprintf("%+v\n", storage)))
+		new, err := json.Marshal(newMetric)
+		if err != nil {
+			logger.Log.Errorf("Error updating metric: %v", err)
+			http.Error(res, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		res.Header().Set("Content-Type", "application/json")
+		res.Write(new)
+		//res.Write([]byte(fmt.Sprintf("\nstorage: %+v\n", storage)))
 		res.WriteHeader(http.StatusOK)
 	}
 }

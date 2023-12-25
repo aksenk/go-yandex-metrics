@@ -5,7 +5,7 @@ import (
 )
 
 type MetricSaver interface {
-	SaveMetric(metric *models.Metric) error
+	SaveMetric(metric models.Metric) error
 }
 
 type MetricGetter interface {
