@@ -25,19 +25,20 @@ func NewRouter(s storage.Storager) chi.Router {
 	r.Get("/", ListAllMetrics(s))
 	// TODO почему-то в ответе дублируется текст "Allow: POST" например при запросе GET /update/
 	r.Route("/value", func(r chi.Router) {
-		r.Get("/", GetMetric(s))
-		r.Get("/{type}/", GetMetric(s))
-		r.Get("/{type}/{name}", GetMetric(s))
+		r.Post("/", JSONGetMetricHandler(s))
+		r.Get("/", PlainGetMetricHandler(s))
+		r.Get("/{type}/", PlainGetMetricHandler(s))
+		r.Get("/{type}/{name}", PlainGetMetricHandler(s))
 	})
 	// TODO вынести работу со storage в middleware?
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/", JSONUpdaterHandler(s))
 		// TODO вернуть
-		r.Post("/{type}/", ParamsUpdaterHandler(s))
-		r.Post("/{type}/{name}/", ParamsUpdaterHandler(s))
-		r.Post("/{type}/{name}/{value}", ParamsUpdaterHandler(s))
+		r.Post("/{type}/", PlainUpdaterHandler(s))
+		r.Post("/{type}/{name}/", PlainUpdaterHandler(s))
+		r.Post("/{type}/{name}/{value}", PlainUpdaterHandler(s))
 	})
-	r.Get("/value/{type}/{name}", GetMetric(s))
+	r.Get("/value/{type}/{name}", PlainGetMetricHandler(s))
 	return r
 }
 
@@ -65,7 +66,7 @@ func ListAllMetrics(storage storage.Storager) http.HandlerFunc {
 	}
 }
 
-func GetMetric(storage storage.Storager) http.HandlerFunc {
+func PlainGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
@@ -103,6 +104,51 @@ func GetMetric(storage storage.Storager) http.HandlerFunc {
 	}
 }
 
+func JSONGetMetricHandler(storage storage.Storager) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		if contentType := req.Header.Get("Content-Type"); contentType != "application/json" {
+			http.Error(res, "Header 'Content-Type: application/json' is required", http.StatusBadRequest)
+			return
+		}
+		var receivedMetric models.Metric
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			http.Error(res, fmt.Sprintf("Error reading body: %v", err), http.StatusBadRequest)
+			return
+		}
+		req.Body.Close()
+		err = json.Unmarshal(body, &receivedMetric)
+		if err != nil {
+			http.Error(res, fmt.Sprintf("Error parsing JSON: %v", err), http.StatusBadRequest)
+			return
+		}
+		if receivedMetric.MType == "" {
+			http.Error(res, "Missing metric type", http.StatusBadRequest)
+			return
+		}
+		if receivedMetric.ID == "" {
+			http.Error(res, "Missing metric name", http.StatusNotFound)
+			return
+		}
+		metric, err := storage.GetMetric(receivedMetric.ID)
+		if err != nil {
+			http.Error(res, fmt.Sprintf("Error receiving metric: %v", err), http.StatusNotFound)
+			return
+		}
+		if metric.MType != receivedMetric.MType {
+			http.Error(res, "Error receiving metric: metric not found", http.StatusNotFound)
+			return
+		}
+		responseText, err := json.Marshal(metric)
+		if err != nil {
+			http.Error(res, fmt.Sprintf("Error getting metric: %v", err), http.StatusBadRequest)
+			return
+		}
+		res.Write(responseText)
+		res.WriteHeader(http.StatusOK)
+	}
+}
+
 func UpdateMetric(metric models.Metric, storage storage.Storager) (models.Metric, error) {
 	newMetric := metric
 	if metric.MType == "counter" {
@@ -118,7 +164,7 @@ func UpdateMetric(metric models.Metric, storage storage.Storager) (models.Metric
 	return newMetric, nil
 }
 
-func ParamsUpdaterHandler(storage storage.Storager) http.HandlerFunc {
+func PlainUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
@@ -215,7 +261,6 @@ func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 
 		newMetric, err := UpdateMetric(receivedMetric, storage)
 		if err != nil {
-
 			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -228,7 +273,6 @@ func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 
 		res.Header().Set("Content-Type", "application/json")
 		res.Write(new)
-		//res.Write([]byte(fmt.Sprintf("\nstorage: %+v\n", storage)))
 		res.WriteHeader(http.StatusOK)
 	}
 }
