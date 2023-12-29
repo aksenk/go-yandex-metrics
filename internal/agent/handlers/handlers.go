@@ -11,7 +11,7 @@ import (
 
 func generateSendURL(m models.Metric, b string) string {
 	//if m.Value.(string)
-	return fmt.Sprintf("%v/%v/%v/%v", b, m.Type, m.Name, m.Value)
+	return fmt.Sprintf("%v/%v/%v/%v", b, m.MType, m.ID, m.Value)
 }
 
 func sendMetrics(metrics []models.Metric, serverURL string) error {
