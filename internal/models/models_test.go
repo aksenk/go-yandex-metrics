@@ -1,115 +1,63 @@
 package models
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestNewMetric(t *testing.T) {
-	type args struct {
-		metricName  string
-		metricType  string
-		metricValue string
+func TestMetric_String(t *testing.T) {
+	type fields struct {
+		Name  string
+		Type  string
+		Delta int64
+		Value float64
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    *Metric
-		wantErr bool
+		name   string
+		fields fields
+		want   string
 	}{
 		{
-			name: "successful test: gauge metric",
-			args: args{
-				metricName:  "test_metric",
-				metricType:  "gauge",
-				metricValue: "1",
-			},
-			want: &Metric{
-				Name:  "test_metric",
+			name: "successfull test gauge",
+			fields: fields{
+				Name:  "kek",
 				Type:  "gauge",
-				Value: float64(1),
+				Delta: 0,
+				Value: 10,
 			},
-			wantErr: false,
+			want: "10",
 		},
 		{
-			name: "successful test: gauge metric 2",
-			args: args{
-				metricName:  "test_metric",
-				metricType:  "gauge",
-				metricValue: "1.123",
-			},
-			want: &Metric{
-				Name:  "test_metric",
-				Type:  "gauge",
-				Value: float64(1.123),
-			},
-			wantErr: false,
-		},
-		{
-			name: "unsuccessful test: gauge metric with incorrect value",
-			args: args{
-				metricName:  "test_metric",
-				metricType:  "gauge",
-				metricValue: "asd",
-			},
-			want:    &Metric{},
-			wantErr: true,
-		},
-		{
-			name: "successful test: counter metric",
-			args: args{
-				metricName:  "test_metric",
-				metricType:  "counter",
-				metricValue: "1",
-			},
-			want: &Metric{
-				Name:  "test_metric",
+			name: "successfull test counter",
+			fields: fields{
+				Name:  "fek",
 				Type:  "counter",
-				Value: int64(1),
+				Delta: 11,
+				Value: 0,
 			},
-			wantErr: false,
-		},
-		{
-			name: "unsuccessful test: counter metric with incorrect value",
-			args: args{
-				metricName:  "test_metric",
-				metricType:  "counter",
-				metricValue: "asd",
-			},
-			want:    &Metric{},
-			wantErr: true,
-		},
-		{
-			name: "unsuccessful test: counter metric with incorrect float value",
-			args: args{
-				metricName:  "test_metric",
-				metricType:  "counter",
-				metricValue: "1.123",
-			},
-			want:    &Metric{},
-			wantErr: true,
-		},
-		{
-			name: "unsuccessful test: incorrect metric type",
-			args: args{
-				metricName:  "test_metric",
-				metricType:  "kek",
-				metricValue: "1",
-			},
-			want:    &Metric{},
-			wantErr: true,
+			want: "11",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, err := NewMetric(tt.args.metricName, tt.args.metricType, tt.args.metricValue)
-			if !tt.wantErr {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.want, m)
+			var m Metric
+			if tt.fields.Delta != 0 {
+				m = Metric{
+					ID:    tt.fields.Name,
+					MType: tt.fields.Type,
+					Delta: &tt.fields.Delta,
+				}
+			} else if tt.fields.Value != 0 {
+				m = Metric{
+					ID:    tt.fields.Name,
+					MType: tt.fields.Type,
+					Value: &tt.fields.Value,
+				}
 			} else {
-				assert.Error(t, err)
+				t.Errorf("Delta and value: both values cannot be non-zero at the same time")
 			}
-
+			if got := m.String(); got != tt.want {
+				t.Errorf("String() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
