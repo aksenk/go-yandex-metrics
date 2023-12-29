@@ -83,6 +83,7 @@ func GetMetrics(c chan []models.Metric, s time.Duration, runtimeRequiredMetrics 
 
 		generateCustomMetrics(&pollCountMetric, &randomValueMetric, &pollCounter)
 		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)
+		//fmt.Printf("metrics: %+v", resultMetrics)
 		select {
 		// если канал пуст - помещаем туда данные
 		case c <- resultMetrics:

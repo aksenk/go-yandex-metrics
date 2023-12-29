@@ -14,13 +14,22 @@ type Metric struct {
 	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
-func (m Metric) StringDelta() string {
-	return strconv.FormatInt(*m.Delta, 10)
+func (m Metric) String() string {
+	if m.Delta != nil {
+		return strconv.FormatInt(*m.Delta, 10)
+	} else if m.Value != nil {
+		return fmt.Sprintf("%g", *m.Value)
+	}
+	return ""
 }
 
-func (m Metric) StringValue() string {
-	return fmt.Sprintf("%g", *m.Value)
-}
+//func (m Metric) StringDelta() string {
+//	return strconv.FormatInt(*m.Delta, 10)
+//}
+//
+//func (m Metric) StringValue() string {
+//	return fmt.Sprintf("%g", *m.Value)
+//}
 
 type Server struct {
 	ListenAddr string

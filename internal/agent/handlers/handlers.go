@@ -9,18 +9,13 @@ import (
 	"time"
 )
 
-func generateSendURL(m models.Metric, b string) string {
-	//if m.Value.(string)
-	return fmt.Sprintf("%v/%v/%v/%v", b, m.MType, m.ID, m.Value)
-}
-
 func sendMetrics(metrics []models.Metric, serverURL string) error {
 	for _, v := range metrics {
-		req, err := http.NewRequest(http.MethodPost, generateSendURL(v, serverURL), nil)
+		url := fmt.Sprintf("%v/%v/%v/%v", serverURL, v.MType, v.ID, v.String())
+		req, err := http.NewRequest(http.MethodPost, url, nil)
 		if err != nil {
 			return err
 		}
-		//req.Close = true
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err
