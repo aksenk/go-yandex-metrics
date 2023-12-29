@@ -47,9 +47,9 @@ func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Met
 				continue
 			}
 			t = models.Metric{
-				Name:  k,
-				Type:  "gauge",
-				Value: float64Value,
+				ID:    k,
+				MType: "gauge",
+				Value: &float64Value,
 			}
 			resultMetrics = append(resultMetrics, t)
 		}
@@ -59,15 +59,16 @@ func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Met
 
 func generateCustomMetrics(p *models.Metric, r *models.Metric, c *int64) {
 	*c += int64(1)
+	rnd := rand.Float64()
 	*p = models.Metric{
-		Name:  "PollCount",
-		Type:  "counter",
-		Value: *c,
+		ID:    "PollCount",
+		MType: "counter",
+		Delta: c,
 	}
 	*r = models.Metric{
-		Name:  "RandomValue",
-		Type:  "gauge",
-		Value: rand.Float64(),
+		ID:    "RandomValue",
+		MType: "gauge",
+		Value: &rnd,
 	}
 }
 
