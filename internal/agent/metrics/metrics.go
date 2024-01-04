@@ -1,14 +1,13 @@
 package metrics
 
 import (
-	"fmt"
+	"github.com/aksenk/go-yandex-metrics/internal/converter"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/fatih/structs"
 	"log"
 	"math/rand"
 	"runtime"
 	"slices"
-	"strconv"
 	"time"
 )
 
@@ -19,29 +18,29 @@ func getSystemMetrics() map[string]interface{} {
 	return structs.Map(m)
 }
 
-func convertToFloat64(v interface{}) (float64, error) {
-	var value float64
-	switch ty := v.(type) {
-	case uint32:
-		value, _ = strconv.ParseFloat(strconv.Itoa(int(ty)), 64)
-		return value, nil
-	case uint64:
-		value, _ = strconv.ParseFloat(strconv.FormatUint(ty, 10), 64)
-		return value, nil
-	case float64:
-		return ty, nil
-	default:
-		log.Printf("unknown type:%v\n", ty)
-		return value, fmt.Errorf("%s: %s", "unknown value type", ty)
-	}
-}
+//func convertToFloat64(v interface{}) (float64, error) {
+//	var value float64
+//	switch ty := v.(type) {
+//	case uint32:
+//		value, _ = strconv.ParseFloat(strconv.Itoa(int(ty)), 64)
+//		return value, nil
+//	case uint64:
+//		value, _ = strconv.ParseFloat(strconv.FormatUint(ty, 10), 64)
+//		return value, nil
+//	case float64:
+//		return ty, nil
+//	default:
+//		log.Printf("unknown type:%v\n", ty)
+//		return value, fmt.Errorf("%s: %s", "unknown value type", ty)
+//	}
+//}
 
 func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Metric {
 	var resultMetrics []models.Metric
 	for k, v := range m {
 		var t models.Metric
 		if contains := slices.Contains(r, k); contains {
-			float64Value, err := convertToFloat64(v)
+			float64Value, err := converter.AnyToFloat64(v)
 			if err != nil {
 				log.Printf("error: %s", err)
 				continue
