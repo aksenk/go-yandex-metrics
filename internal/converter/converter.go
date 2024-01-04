@@ -11,17 +11,20 @@ func AnyToFloat64(value any) (float64, error) {
 
 	switch ty := value.(type) {
 
+	case int:
+		return float64(ty), nil
+
 	case uint32:
 		flValue, err = strconv.ParseFloat(strconv.Itoa(int(ty)), 64)
 		if err != nil {
-			return flValue, fmt.Errorf("can not convert '%v' to float64: %v", value, err)
+			return flValue, fmt.Errorf("can not convert type '%v' value '%v' to float64: %v", ty, value, err)
 		}
 		return flValue, nil
 
 	case uint64:
 		flValue, err = strconv.ParseFloat(strconv.FormatUint(ty, 10), 64)
 		if err != nil {
-			return flValue, fmt.Errorf("can not convert '%v' to float64: %v", value, err)
+			return flValue, fmt.Errorf("can not convert type '%v' value '%v' to float64: %v", ty, value, err)
 		}
 		return flValue, nil
 
@@ -31,12 +34,12 @@ func AnyToFloat64(value any) (float64, error) {
 	case string:
 		flValue, err = strconv.ParseFloat(value.(string), 64)
 		if err != nil {
-			return flValue, fmt.Errorf("can not convert '%v' to float64: %v", value, err)
+			return flValue, fmt.Errorf("can not convert type '%v' value '%v' to float64: %v", ty, value, err)
 		}
 		return flValue, nil
 
 	default:
-		return flValue, fmt.Errorf("can not convert '%v' to float64: %v", value, err)
+		return flValue, fmt.Errorf("can not convert type '%v' value '%v' to float64: %v", ty, value, err)
 	}
 }
 

@@ -1,19 +1,18 @@
 package metrics
 
 import (
-	"github.com/aksenk/go-yandex-metrics/internal/converter"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func Test_generateCustomMetrics(t *testing.T) {
 	type want struct {
-		Name string
-		Type string
-		//Delta int64
+		Name  string
+		Type  string
 		Value any
 	}
 	tests := []struct {
@@ -42,39 +41,9 @@ func Test_generateCustomMetrics(t *testing.T) {
 			var counter int64
 			want1, err := models.NewMetric(tt.want1.Name, tt.want1.Type, tt.want1.Value)
 			require.NoError(t, err)
-			//if tt.want1.Type == "counter" {
-			//	want1 = models.Metric{
-			//		ID:    tt.want1.Name,
-			//		MType: tt.want1.Type,
-			//		Delta: &tt.want1.Delta,
-			//		Value: nil,
-			//	}
-			//} else {
-			//	want1 = models.Metric{
-			//		ID:    tt.want1.Name,
-			//		MType: tt.want1.Type,
-			//		Delta: nil,
-			//		Value: &tt.want1.Value,
-			//	}
-			//}
 
 			want2, err := models.NewMetric(tt.want2.Name, tt.want2.Type, tt.want2.Value)
 			require.NoError(t, err)
-			//if tt.want2.Type == "counter" {
-			//	want2 = models.Metric{
-			//		ID:    tt.want2.Name,
-			//		MType: tt.want2.Type,
-			//		Delta: &tt.want2.Delta,
-			//		Value: nil,
-			//	}
-			//} else {
-			//	want2 = models.Metric{
-			//		ID:    tt.want2.Name,
-			//		MType: tt.want2.Type,
-			//		Delta: nil,
-			//		Value: &tt.want2.Value,
-			//	}
-			//}
 
 			generateCustomMetrics(&pollMetric, &randMetric, &counter)
 			if !reflect.DeepEqual(want1, pollMetric) {
@@ -96,46 +65,6 @@ func Test_generateCustomMetrics(t *testing.T) {
 func Test_getSystemMetrics(t *testing.T) {
 	metrics := getSystemMetrics()
 	assert.Contains(t, metrics, "Alloc", "The system handlers is not contains 'Alloc' metric")
-}
-
-func Test_convertToFloat64(t *testing.T) {
-	tests := []struct {
-		name    string
-		value   any
-		wantErr bool
-	}{
-		{
-			name:    "test uint32",
-			value:   uint32(32),
-			wantErr: false,
-		},
-		{
-			name:    "test uint64",
-			value:   uint64(32),
-			wantErr: false,
-		},
-		{
-			name:    "test float64",
-			value:   float64(32),
-			wantErr: false,
-		},
-		{
-			name:    "test string",
-			value:   "kek",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := converter.AnyToFloat64(tt.value)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
 }
 
 func Test_getRequiredSystemMetrics(t *testing.T) {
@@ -234,89 +163,90 @@ func Test_getRequiredSystemMetrics(t *testing.T) {
 	}
 }
 
-//func TestGetMetrics(t *testing.T) {
-//	type args struct {
-//		c chan []models.Metric
-//		s time.Duration
-//		r []string
-//	}
-//	type want struct {
-//		Name  string
-//		Type  string
-//		Delta int64
-//		Value float64
-//	}
-//	tests := []struct {
-//		name       string
-//		args       args
-//		checkAfter time.Duration
-//		wantErr    bool
-//		want       want
-//	}{
-//		{
-//			name: "successful test with custom metric",
-//			args: args{
-//				s: time.Duration(time.Millisecond * 500),
-//				r: []string{},
-//				c: make(chan []models.Metric, 1),
-//			},
-//			checkAfter: time.Duration(time.Millisecond * 750),
-//			wantErr:    false,
-//			want: want{
-//				Name:  "PollCount",
-//				Type:  "counter",
-//				Delta: 2,
-//			},
-//		},
-//		//{
-//		//	name: "successful test with system metric",
-//		//	args: args{
-//		//		s: time.Duration(time.Millisecond * 500),
-//		//		r: []string{"LastGC"},
-//		//		c: make(chan []models.Metric, 1),
-//		//	},
-//		//	checkAfter: time.Duration(time.Millisecond * 750),
-//		//	wantErr:    false,
-//		//	want: models.Metric{
-//		//		ID:  "LastGC",
-//		//		MType:  "gauge",
-//		//		Value: 0,
-//		//	},
-//		//},
-//		//{
-//		//	name: "unsuccessful test",
-//		//	args: args{
-//		//		s: time.Duration(time.Millisecond * 500),
-//		//		r: []string{"LastGC"},
-//		//		c: make(chan []models.Metric, 1),
-//		//	},
-//		//	checkAfter: time.Duration(time.Millisecond * 750),
-//		//	wantErr:    true,
-//		//	want: models.Metric{
-//		//		Name:  "Kek",
-//		//		Type:  "gauge",
-//		//		Value: float64(0),
-//		//	},
-//		//},
-//	}
-//	for _, tt := range tests {
-//		t.Run(tt.name, func(t *testing.T) {
-//			go GetMetrics(tt.args.c, tt.args.s, tt.args.r)
-//			time.Sleep(tt.checkAfter)
-//			var data []models.Metric
-//			select {
-//			case data = <-tt.args.c:
-//				//t.Logf("received %+v", data)
-//			default:
-//				//t.Log("empty")
-//			}
-//
-//			if !tt.wantErr {
-//				assert.Contains(t, data, tt.want)
-//				//assert.Equal(t, tt.want, data)
-//			} else {
-//				assert.NotContains(t, data, tt.want)
-//			}
-//		})
-//	}
-//}
+func TestGetMetrics(t *testing.T) {
+	type args struct {
+		c chan []models.Metric
+		s time.Duration
+		r []string
+	}
+	type want struct {
+		Name  string
+		Type  string
+		Value any
+	}
+	tests := []struct {
+		name       string
+		args       args
+		checkAfter time.Duration
+		wantErr    bool
+		want       want
+	}{
+		{
+			name: "successful test with custom metric",
+			args: args{
+				s: time.Duration(time.Millisecond * 500),
+				r: []string{},
+				c: make(chan []models.Metric, 1),
+			},
+			checkAfter: time.Duration(time.Millisecond * 750),
+			wantErr:    false,
+			want: want{
+				Name:  "PollCount",
+				Type:  "counter",
+				Value: 2,
+			},
+		},
+		{
+			name: "successful test with system metric",
+			args: args{
+				s: time.Duration(time.Millisecond * 500),
+				r: []string{"LastGC"},
+				c: make(chan []models.Metric, 1),
+			},
+			checkAfter: time.Duration(time.Millisecond * 750),
+			wantErr:    false,
+			want: want{
+				Name:  "LastGC",
+				Type:  "gauge",
+				Value: 0,
+			},
+		},
+		{
+			name: "unsuccessful test",
+			args: args{
+				s: time.Duration(time.Millisecond * 500),
+				r: []string{"LastGC"},
+				c: make(chan []models.Metric, 1),
+			},
+			checkAfter: time.Duration(time.Millisecond * 750),
+			wantErr:    true,
+			want: want{
+				Name:  "Kek",
+				Type:  "gauge",
+				Value: 0,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wantMetric, err := models.NewMetric(tt.want.Name, tt.want.Type, tt.want.Value)
+			require.NoError(t, err)
+			go GetMetrics(tt.args.c, tt.args.s, tt.args.r)
+			time.Sleep(tt.checkAfter)
+			var data []models.Metric
+			select {
+			case data = <-tt.args.c:
+				//t.Logf("received %+v", data)
+			default:
+				//t.Log("empty")
+			}
+
+			if !tt.wantErr {
+				assert.Contains(t, data, wantMetric)
+				//assert.Equal(t, tt.want, data)
+			} else {
+				assert.NotContains(t, data, wantMetric)
+			}
+		})
+	}
+}
