@@ -18,23 +18,6 @@ func getSystemMetrics() map[string]interface{} {
 	return structs.Map(m)
 }
 
-//func convertToFloat64(v interface{}) (float64, error) {
-//	var value float64
-//	switch ty := v.(type) {
-//	case uint32:
-//		value, _ = strconv.ParseFloat(strconv.Itoa(int(ty)), 64)
-//		return value, nil
-//	case uint64:
-//		value, _ = strconv.ParseFloat(strconv.FormatUint(ty, 10), 64)
-//		return value, nil
-//	case float64:
-//		return ty, nil
-//	default:
-//		log.Printf("unknown type:%v\n", ty)
-//		return value, fmt.Errorf("%s: %s", "unknown value type", ty)
-//	}
-//}
-
 func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Metric {
 	var resultMetrics []models.Metric
 	for k, v := range m {
@@ -78,24 +61,18 @@ func GetMetrics(c chan []models.Metric, s time.Duration, runtimeRequiredMetrics 
 	for {
 		systemMetrics := getSystemMetrics()
 		resultMetrics := getRequiredSystemMetrics(systemMetrics, runtimeRequiredMetrics)
-		//log.Printf("system: %+v", resultMetrics)
 
 		generateCustomMetrics(&pollCountMetric, &randomValueMetric, &pollCounter)
 		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)
-		//fmt.Printf("metrics: %+v", resultMetrics)
 		select {
 		// если канал пуст - помещаем туда данные
 		case c <- resultMetrics:
-			//log.Printf("sent handlers to the channel")
 		// если в канале уже есть данные
 		default:
-			//log.Printf("read")
 			// вычитываем их
 			<-c
-			//log.Printf("sent")
 			// помещаем туда новые данные
 			c <- resultMetrics
-			//log.Printf("exit")
 		}
 		time.Sleep(s)
 	}
