@@ -17,7 +17,7 @@ func TestMetric_String(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "successfull test gauge",
+			name: "successfully test gauge",
 			fields: fields{
 				Name:  "kek",
 				Type:  "gauge",
@@ -27,7 +27,7 @@ func TestMetric_String(t *testing.T) {
 			want: "10",
 		},
 		{
-			name: "successfull test counter",
+			name: "successfully test counter",
 			fields: fields{
 				Name:  "fek",
 				Type:  "counter",
