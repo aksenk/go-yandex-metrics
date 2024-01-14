@@ -70,7 +70,13 @@ func AnyToInt64(value any) (int64, error) {
 		} else {
 			return 0, fmt.Errorf("value '%v' is too large to convert to int64", value)
 		}
+	case string:
+		int64, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("unable to convert string to int64: %v", err)
+		}
+		return int64, nil
 	default:
-		return 0, fmt.Errorf("unable to convert to float64: unsupported type '%v'", v)
+		return 0, fmt.Errorf("unable to convert to int64: unsupported type '%v'", v)
 	}
 }
