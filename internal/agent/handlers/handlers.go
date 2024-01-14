@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"io"
@@ -11,16 +13,19 @@ import (
 
 func sendMetrics(metrics []models.Metric, serverURL string) error {
 	for _, v := range metrics {
-		url := fmt.Sprintf("%v/%v/%v/%v", serverURL, v.MType, v.ID, v.String())
-		req, err := http.NewRequest(http.MethodPost, url, nil)
+		//url := fmt.Sprintf("%v/%v/%v/%v", serverURL, v.MType, v.ID, v.String())
+		url := fmt.Sprintf("%v/update", serverURL)
+
+		marshaledMetric, err := json.Marshal(v)
+		requestBody := bytes.NewBuffer(marshaledMetric)
 		if err != nil {
 			return err
 		}
-		res, err := http.DefaultClient.Do(req)
+		res, err := http.Post(url, "application/json", requestBody)
 		if err != nil {
 			return err
 		}
-		body, err := io.ReadAll(res.Body)
+		responseBody, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err
 		}
@@ -29,7 +34,7 @@ func sendMetrics(metrics []models.Metric, serverURL string) error {
 			return err
 		}
 		if res.StatusCode != 200 {
-			return fmt.Errorf("unexpected response status code: %v\nError: %v", res.StatusCode, string(body))
+			return fmt.Errorf("unexpected response status code: %v\nError: %v", res.StatusCode, string(responseBody))
 		}
 	}
 	return nil
