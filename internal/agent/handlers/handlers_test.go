@@ -11,72 +11,58 @@ import (
 )
 
 func Test_sendMetrics(t *testing.T) {
-	type rawMetric struct {
+	type metric struct {
 		Name  string
 		Type  string
 		Value any
 	}
-	type args struct {
-		metrics []rawMetric
-		path    string
-	}
 	tests := []struct {
 		name    string
-		args    args
-		wantErr bool
+		metrics []metric
 	}{
 		{
-			name:    "successful test",
-			wantErr: false,
-			args: args{
-				metrics: []rawMetric{
-					{
-						Name:  "TestMetric",
-						Type:  "counter",
-						Value: 1,
-					},
+			name: "successful test",
+			metrics: []metric{
+				{
+					Name:  "TestMetric",
+					Type:  "counter",
+					Value: 1,
 				},
-				path: "/counter/TestMetric/1",
 			},
 		},
 		{
-			name:    "unsuccessful test",
-			wantErr: true,
-			args: args{
-				metrics: []rawMetric{
-					{
-						Name:  "TestMetric",
-						Type:  "counter",
-						Value: 1,
-					},
+			name: "unsuccessful test",
+			metrics: []metric{
+				{
+					Name:  "TestMetric",
+					Type:  "gauge",
+					Value: 1.123,
 				},
-				path: "/gauge/TestMetric/1",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requiredURL := "/update"
 				if r.Method != http.MethodPost {
 					t.Error("HTTP method is not POST")
 				}
-				if tt.wantErr {
-					assert.NotEqual(t, tt.args.path, r.URL.RequestURI())
-
-				} else {
-					assert.Equal(t, tt.args.path, r.URL.RequestURI())
+				if r.Header.Get("Content-Type") != "application/json" {
+					t.Error("Header 'Content-Type' is not 'application-json'")
 				}
+				assert.Equal(t, requiredURL, r.URL.RequestURI())
 				w.Write([]byte(r.URL.RequestURI()))
 			}))
 			defer s.Close()
 			var metrics []models.Metric
-			for _, m := range tt.args.metrics {
+			for _, m := range tt.metrics {
 				nm, err := models.NewMetric(m.Name, m.Type, m.Value)
 				require.NoError(t, err)
 				metrics = append(metrics, nm)
 			}
-			err := sendMetrics(metrics, s.URL)
-			assert.Equal(t, nil, err)
+			err := sendMetrics(metrics, s.URL+"/update")
+			assert.NoError(t, err)
 		})
 	}
 }

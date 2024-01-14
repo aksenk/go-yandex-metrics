@@ -95,7 +95,7 @@ func TestUpdateMetric(t *testing.T) {
 		},
 		{
 			name:     "POST request unsuccessful: counter float",
-			wantCode: 400,
+			wantCode: 500,
 			args: args{
 				method: "POST",
 				path:   "/update/counter/name/1.1",

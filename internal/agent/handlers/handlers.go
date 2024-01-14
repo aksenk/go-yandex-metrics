@@ -13,15 +13,12 @@ import (
 
 func sendMetrics(metrics []models.Metric, serverURL string) error {
 	for _, v := range metrics {
-		//url := fmt.Sprintf("%v/%v/%v/%v", serverURL, v.MType, v.ID, v.String())
-		url := fmt.Sprintf("%v/update", serverURL)
-
 		marshaledMetric, err := json.Marshal(v)
 		requestBody := bytes.NewBuffer(marshaledMetric)
 		if err != nil {
 			return err
 		}
-		res, err := http.Post(url, "application/json", requestBody)
+		res, err := http.Post(serverURL, "application/json", requestBody)
 		if err != nil {
 			return err
 		}
