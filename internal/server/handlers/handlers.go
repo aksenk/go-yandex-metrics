@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -96,7 +95,7 @@ func PlainGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 			responseText = fmt.Sprintf("%v\n", *metric.Value)
 			responseCode = http.StatusOK
 		} else {
-			responseText = fmt.Sprintf("Unknown metric type\n")
+			responseText = "Unknown metric type\n"
 			responseCode = http.StatusBadRequest
 		}
 		res.Write([]byte(responseText))
@@ -182,32 +181,10 @@ func PlainUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, "Missing metric value", http.StatusBadRequest)
 			return
 		}
-		var metric models.Metric
-		if metricType == "counter" {
-			if newValue, err := strconv.ParseInt(metricValue, 10, 64); err == nil {
-				metric = models.Metric{
-					ID:    metricName,
-					MType: metricType,
-					Delta: &newValue,
-				}
-			} else {
-				http.Error(res, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else if metricType == "gauge" {
-			if newValue, err := strconv.ParseFloat(metricValue, 64); err == nil {
-				metric = models.Metric{
-					ID:    metricName,
-					MType: metricType,
-					Value: &newValue,
-				}
-			} else {
-				http.Error(res, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else {
-			logger.Log.Infof("Unknown metric type")
-			http.Error(res, "Unknown metric type. Should be 'gauge' or 'counter'", http.StatusBadRequest)
+		metric, err := models.NewMetric(metricName, metricType, metricValue)
+		if err != nil {
+			logger.Log.Errorf("Error handling metric: %v", err)
+			http.Error(res, fmt.Sprintf("Error handling metric: %v", err), http.StatusBadRequest)
 			return
 		}
 		newMetric, err := UpdateMetric(metric, storage)
