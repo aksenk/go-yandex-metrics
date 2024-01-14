@@ -3,68 +3,21 @@ package handlers
 import (
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
 
-// вроде как имена тестов нужно писать через CamelCase, но если это приватная функция
-// то генератор в IDE даёт ей название через snake_case. это ок?
-func Test_generateSendURL(t *testing.T) {
-	tests := []struct {
-		name    string
-		metric  models.Metric
-		wantErr bool
-		want    string
-	}{
-		{
-			name: "basic logic test",
-			metric: models.Metric{
-				Name:  "PollInterval",
-				Type:  "counter",
-				Value: 1,
-			},
-			wantErr: false,
-			want:    "/counter/PollInterval/1",
-		},
-		{
-			name: "basic logic test dummy values",
-			metric: models.Metric{
-				Name:  "tratatatata",
-				Type:  "akunamatata",
-				Value: "keeeks",
-			},
-			wantErr: false,
-			want:    "/akunamatata/tratatatata/keeeks",
-		},
-		{
-			name: "error test",
-			metric: models.Metric{
-				Name:  "PollInterval",
-				Type:  "counter",
-				Value: 1,
-			},
-			wantErr: true,
-			want:    "/gauge/PollInterval/1",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			get := generateSendURL(tt.metric, "")
-			if tt.wantErr {
-				assert.NotEqual(t, tt.want, get)
-			} else {
-				assert.Equal(t, tt.want, get)
-			}
-		})
-	}
-}
-
 func Test_sendMetrics(t *testing.T) {
+	type rawMetric struct {
+		Name  string
+		Type  string
+		Value any
+	}
 	type args struct {
-		metrics []models.Metric
+		metrics []rawMetric
 		path    string
 	}
 	tests := []struct {
@@ -76,7 +29,7 @@ func Test_sendMetrics(t *testing.T) {
 			name:    "successful test",
 			wantErr: false,
 			args: args{
-				metrics: []models.Metric{
+				metrics: []rawMetric{
 					{
 						Name:  "TestMetric",
 						Type:  "counter",
@@ -90,7 +43,7 @@ func Test_sendMetrics(t *testing.T) {
 			name:    "unsuccessful test",
 			wantErr: true,
 			args: args{
-				metrics: []models.Metric{
+				metrics: []rawMetric{
 					{
 						Name:  "TestMetric",
 						Type:  "counter",
@@ -116,17 +69,28 @@ func Test_sendMetrics(t *testing.T) {
 				w.Write([]byte(r.URL.RequestURI()))
 			}))
 			defer s.Close()
-			err := sendMetrics(tt.args.metrics, s.URL)
+			var metrics []models.Metric
+			for _, m := range tt.args.metrics {
+				nm, err := models.NewMetric(m.Name, m.Type, m.Value)
+				require.NoError(t, err)
+				metrics = append(metrics, nm)
+			}
+			err := sendMetrics(metrics, s.URL)
 			assert.Equal(t, nil, err)
 		})
 	}
 }
 
 func TestHandleMetrics(t *testing.T) {
+	type rawMetric struct {
+		Name  string
+		Type  string
+		Value any
+	}
 	type args struct {
 		handleAfter int
 		checkAfter  int
-		metrics     []models.Metric
+		metrics     []rawMetric
 	}
 	tests := []struct {
 		name    string
@@ -139,7 +103,7 @@ func TestHandleMetrics(t *testing.T) {
 			args: args{
 				handleAfter: 1,
 				checkAfter:  2,
-				metrics: []models.Metric{
+				metrics: []rawMetric{
 					{
 						Name:  "FirstMetric",
 						Type:  "gauge",
@@ -159,7 +123,7 @@ func TestHandleMetrics(t *testing.T) {
 			args: args{
 				handleAfter: 3,
 				checkAfter:  2,
-				metrics: []models.Metric{
+				metrics: []rawMetric{
 					{
 						Name:  "FirstMetric",
 						Type:  "gauge",
@@ -183,7 +147,13 @@ func TestHandleMetrics(t *testing.T) {
 			}))
 			checkAfter := time.Second * time.Duration(tt.args.checkAfter)
 			ticker := time.NewTicker(time.Second * time.Duration(tt.args.handleAfter))
-			c <- tt.args.metrics
+			var metrics []models.Metric
+			for _, m := range tt.args.metrics {
+				nm, err := models.NewMetric(m.Name, m.Type, m.Value)
+				require.NoError(t, err)
+				metrics = append(metrics, nm)
+			}
+			c <- metrics
 			go HandleMetrics(c, ticker, s.URL)
 			time.Sleep(checkAfter)
 			var data []models.Metric
