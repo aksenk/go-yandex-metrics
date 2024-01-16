@@ -8,7 +8,8 @@ import (
 )
 
 var errIncorrectType = errors.New("incorrect metric type")
-var errIncorrectValue = errors.New("incorrect metric value")
+
+//var errIncorrectValue = errors.New("incorrect metric value")
 
 // TODO вопрос зачем делать указатели на int64 float64 ?
 type Metric struct {

@@ -6,10 +6,10 @@ import (
 	"sync"
 )
 
-var (
-	errMetricType  = errors.New("incorrect metric type")
-	errMetricValue = errors.New("incorrect metric value")
-)
+//var (
+//	errMetricType  = errors.New("incorrect metric type")
+//	errMetricValue = errors.New("incorrect metric value")
+//)
 
 type MemStorage struct {
 	Metrics map[string]models.Metric

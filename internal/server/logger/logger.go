@@ -11,7 +11,6 @@ var Log *zap.SugaredLogger
 type responseData struct {
 	statusCode int
 	size       int
-	body       []byte
 }
 
 type loggingResponseWriter struct {
