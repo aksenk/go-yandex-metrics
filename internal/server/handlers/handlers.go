@@ -143,6 +143,7 @@ func JSONGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, fmt.Sprintf("Error getting metric: %v", err), http.StatusBadRequest)
 			return
 		}
+		res.Header().Set("Content-Type", "application/json")
 		res.Write(responseText)
 		res.WriteHeader(http.StatusOK)
 	}
