@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/agent/handlers"
 	"github.com/aksenk/go-yandex-metrics/internal/agent/metrics"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"log"
 	"os"
@@ -26,6 +27,7 @@ func GetConfig() *Config {
 	serverAddr := flag.String("a", "localhost:8080", "Metrics server address (host:port)")
 	pollInterval := flag.String("p", "2", "Interval for scraping metrics (in seconds)")
 	reportInterval := flag.String("r", "10", "Interval for sending metrics (in seconds)")
+
 	flag.Parse()
 	if e := os.Getenv("USE_HTTPS"); e != "" {
 		serverUseHTTPS = &e
@@ -66,6 +68,7 @@ func GetConfig() *Config {
 }
 
 func main() {
+	log := logger.Log
 	cfg := GetConfig()
 	if cfg.PollInterval > cfg.ReportInterval {
 		log.Fatalf("Poll interval can not be more that report interval")
@@ -76,6 +79,7 @@ func main() {
 		"NumGC", "OtherSys", "PauseTotalNs", "StackInuse", "StackSys", "Sys", "TotalAlloc"}
 	reportTicker := time.NewTicker(cfg.ReportInterval)
 	metricsChan := make(chan []models.Metric, 1)
+	log.Infof("Agent started")
 	go metrics.GetMetrics(metricsChan, cfg.PollInterval, runtimeRequiredMetrics)
 	handlers.HandleMetrics(metricsChan, reportTicker, cfg.ServerURL)
 }

@@ -2,23 +2,49 @@ package handlers
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"io"
-	"log"
 	"net/http"
 	"time"
 )
 
 func sendMetrics(metrics []models.Metric, serverURL string) error {
+	log := logger.Log
+	var req *http.Request
 	for _, v := range metrics {
-		marshaledMetric, err := json.Marshal(v)
-		requestBody := bytes.NewBuffer(marshaledMetric)
-		if err != nil {
-			return err
+		client := http.Client{
+			Timeout: 10 * time.Second,
 		}
-		res, err := http.Post(serverURL, "application/json", requestBody)
+
+		jsonData, err := json.Marshal(v)
+		if err != nil {
+			log.Errorf("Can not marshal data: %v", err)
+			return fmt.Errorf("can not marshal data: %v", err)
+		}
+
+		var gzippedBody bytes.Buffer
+		w := gzip.NewWriter(&gzippedBody)
+		if _, err := w.Write(jsonData); err != nil {
+			log.Errorf("Can not gzip data: %v", err)
+			return fmt.Errorf("can not gzip data: %v", err)
+		}
+		if err := w.Close(); err != nil {
+			log.Errorf("Can not close writer: %v", err)
+			return fmt.Errorf("can not close writer: %v", err)
+		}
+		req, err = http.NewRequest(http.MethodPost, serverURL, &gzippedBody)
+		if err != nil {
+			log.Errorf("Can not create http request: %v", err)
+			return fmt.Errorf("can not create http request: %v", err)
+		}
+		req.Header.Set("Content-Encoding", "gzip")
+
+		req.Header.Set("Content-Type", "application/json")
+		res, err := client.Do(req)
 		if err != nil {
 			return err
 		}
@@ -38,14 +64,15 @@ func sendMetrics(metrics []models.Metric, serverURL string) error {
 }
 
 func HandleMetrics(metricsChan chan []models.Metric, ticker *time.Ticker, serverURL string) {
+	log := logger.Log
 	for {
 		<-ticker.C
 		resultMetrics := <-metricsChan
 		err := sendMetrics(resultMetrics, serverURL)
 		if err != nil {
-			log.Printf("Can not send handlers: %s\n", err)
+			log.Errorf("Can not send handlers: %s", err)
 			continue
 		}
-		log.Printf("Metrics have been sent successfully\n")
+		log.Debugf("Metrics have been sent successfully")
 	}
 }

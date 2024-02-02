@@ -2,7 +2,7 @@ package compress
 
 import (
 	"compress/gzip"
-	"github.com/aksenk/go-yandex-metrics/internal/server/logger"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"io"
 	"net/http"
 	"strings"
@@ -26,18 +26,10 @@ func (g gzipResponseWriter) Write(b []byte) (int, error) {
 	return g.gzipWriter.Write(b)
 }
 
-//func NewGzipResponseWriter(w http.ResponseWriter) *gzipResponseWriter {
-//	return &gzipResponseWriter{
-//		w,
-//		gzip.NewWriter(w),
-//	}
-//}
-
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var nextResponseWriter http.ResponseWriter
 		if strings.Contains(request.Header.Get("Content-Encoding"), "gzip") {
-			logger.Log.Debugf("Using gzipped request")
 			gr, err := gzip.NewReader(request.Body)
 			if err != nil {
 				logger.Log.Errorf("Can not ungzip incoming reeuest data: %v", err)
@@ -61,7 +53,7 @@ func Middleware(next http.Handler) http.Handler {
 				}
 			}
 			if isAllowedContentType {
-				logger.Log.Debugf("Using gzipped response")
+				logger.Log.Debugf("The client requested compressed data. The response will be gzipped")
 				// TODO отказаться от gzip.NewWriterLevel() и использовать метод gzip.Reset()
 				gzw, _ := gzip.NewWriterLevel(writer, gzip.BestSpeed)
 				defer gzw.Close()

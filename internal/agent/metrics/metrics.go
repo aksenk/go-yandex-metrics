@@ -2,9 +2,9 @@ package metrics
 
 import (
 	"github.com/aksenk/go-yandex-metrics/internal/converter"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/fatih/structs"
-	"log"
 	"math/rand"
 	"runtime"
 	"slices"
@@ -19,13 +19,14 @@ func getSystemMetrics() map[string]interface{} {
 }
 
 func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Metric {
+	log := logger.Log
 	var resultMetrics []models.Metric
 	for k, v := range m {
 		var t models.Metric
 		if contains := slices.Contains(r, k); contains {
 			float64Value, err := converter.AnyToFloat64(v)
 			if err != nil {
-				log.Printf("error: %s", err)
+				log.Errorf("error: %s", err)
 				continue
 			}
 			t = models.Metric{
@@ -57,7 +58,6 @@ func generateCustomMetrics(p *models.Metric, r *models.Metric, c *int64) {
 func GetMetrics(c chan []models.Metric, s time.Duration, runtimeRequiredMetrics []string) {
 	pollCounter := int64(0)
 	var pollCountMetric, randomValueMetric models.Metric
-
 	for {
 		systemMetrics := getSystemMetrics()
 		resultMetrics := getRequiredSystemMetrics(systemMetrics, runtimeRequiredMetrics)

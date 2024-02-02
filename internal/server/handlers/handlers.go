@@ -3,9 +3,9 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/aksenk/go-yandex-metrics/internal/server/compress"
-	"github.com/aksenk/go-yandex-metrics/internal/server/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
