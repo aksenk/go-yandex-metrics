@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/server/compress"
 	"github.com/aksenk/go-yandex-metrics/internal/server/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/go-chi/chi/v5"
@@ -21,6 +22,7 @@ func NewRouter(s storage.Storager) chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Timeout(time.Second * 5))
+	r.Use(compress.Middleware)
 	r.Get("/", ListAllMetrics(s))
 	// TODO почему-то в ответе дублируется текст "Allow: POST" например при запросе GET /update/
 	r.Route("/value", func(r chi.Router) {

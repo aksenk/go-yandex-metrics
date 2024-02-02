@@ -31,7 +31,9 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 
 func init() {
 	atom := zap.NewAtomicLevel()
-	atom.SetLevel(zap.InfoLevel)
+	//atom.SetLevel(zap.InfoLevel)
+	// TODO убрать
+	atom.SetLevel(zap.DebugLevel)
 	cfg := zap.NewProductionConfig()
 	cfg.Level = atom
 	zl, _ := cfg.Build()
