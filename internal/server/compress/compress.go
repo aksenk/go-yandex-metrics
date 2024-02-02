@@ -8,6 +8,15 @@ import (
 	"strings"
 )
 
+type gzipReadCloser struct {
+	io.ReadCloser
+	gr io.Reader
+}
+
+func (g gzipReadCloser) Read(b []byte) (int, error) {
+	return g.gr.Read(b)
+}
+
 type gzipResponseWriter struct {
 	http.ResponseWriter
 	gzw io.Writer
@@ -15,15 +24,6 @@ type gzipResponseWriter struct {
 
 func (g gzipResponseWriter) Write(b []byte) (int, error) {
 	return g.gzw.Write(b)
-}
-
-type gzipWriter struct {
-	http.ResponseWriter
-	Writer io.Writer
-}
-
-func (w gzipWriter) Write(b []byte) (int, error) {
-	return w.Writer.Write(b)
 }
 
 //func NewGzipResponseWriter(w http.ResponseWriter) *gzipResponseWriter {
@@ -35,20 +35,36 @@ func (w gzipWriter) Write(b []byte) (int, error) {
 
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if !strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
-			next.ServeHTTP(writer, request)
-			return
+		var nextResponseWriter http.ResponseWriter
+		if strings.Contains(request.Header.Get("Content-Encoding"), "gzip") {
+			logger.Log.Debugf("Using gzipped request")
+			gr, err := gzip.NewReader(request.Body)
+			if err != nil {
+				// TODO
+				panic(err)
+			}
+			grc := gzipReadCloser{
+				request.Body,
+				gr,
+			}
+			request.Body = grc
 		}
-		logger.Log.Debugf("Using gzipped response")
-		// TODO проверять и сжимать только определенные content type
-		// TODO отказаться от gzip.NewWriterLevel() и использовать метод gzip.Reset()
-		gzw, _ := gzip.NewWriterLevel(writer, gzip.BestSpeed)
-		defer gzw.Close()
-		grw := gzipResponseWriter{
-			writer,
-			gzw,
+
+		if strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
+			logger.Log.Debugf("Using gzipped response")
+			// TODO проверять и сжимать только определенные content type
+			// TODO отказаться от gzip.NewWriterLevel() и использовать метод gzip.Reset()
+			gzw, _ := gzip.NewWriterLevel(writer, gzip.BestSpeed)
+			defer gzw.Close()
+			nextResponseWriter = gzipResponseWriter{
+				writer,
+				gzw,
+			}
+			nextResponseWriter.Header().Set("Content-Encoding", "gzip")
+		} else {
+			nextResponseWriter = writer
 		}
-		grw.Header().Set("Content-Encoding", "gzip")
-		next.ServeHTTP(grw, request)
+
+		next.ServeHTTP(nextResponseWriter, request)
 	})
 }
