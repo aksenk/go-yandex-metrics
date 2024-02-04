@@ -44,3 +44,11 @@ func (s *MemStorage) GetAllMetrics() map[string]models.Metric {
 	defer s.mu.Unlock()
 	return s.Metrics
 }
+
+func (s *MemStorage) FlushMetrics() error {
+	return nil
+}
+
+func (s *MemStorage) StartupRestore() error {
+	return nil
+}

@@ -32,8 +32,7 @@ func GetConfig() (*Config, error) {
 	log := logger.Log
 	storage := flag.String("s", "file", "Storage type")
 	serverListenAddr := flag.String("a", "localhost:8080", "host:port for server listening")
-	// TODO вернуть на 300
-	metricsStoreInterval := flag.Int("i", 10, "Period in seconds between flushing metrics to the disk")
+	metricsStoreInterval := flag.Int("i", 300, "Period in seconds between flushing metrics to the disk")
 	fileStorageFileName := flag.String("f", "/tmp/metrics-db.json", "Path to the file for storing metrics")
 	fileStorageStartupRestore := flag.Bool("r", true, "Restoring metrics from the file at startup")
 	flag.Parse()
