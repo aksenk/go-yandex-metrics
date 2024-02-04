@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type App struct {
@@ -25,7 +26,7 @@ func (a *App) Start() error {
 
 	switch a.config.Storage {
 	case "file":
-		if a.config.StartupRestore {
+		if a.config.Metrics.StartupRestore {
 			err := a.fileStorage.StartupRestore()
 			if err != nil {
 				return err
@@ -33,9 +34,10 @@ func (a *App) Start() error {
 		}
 	}
 
-	//if a.config.Metrics.StoreInterval > 0 {
-	//	go a.BackgroundFlushing()
-	//}
+	// TODO доделать для 0
+	if a.config.Metrics.StoreInterval > 0 {
+		go a.BackgroundFlushing()
+	}
 
 	if err := http.ListenAndServe(a.config.Server.ListenAddr, *a.router); err != nil {
 		return err
@@ -65,49 +67,34 @@ func NewApp(config *config.Config) (*App, error) {
 	}
 }
 
-//func (a *App) BackgroundFlushing() {
-//	log := logger.Log
-//	log.Infof("Starting background metric flushing every %v seconds to the file %v", f.flushInterval, f.file.Name())
-//	flushTicker := time.NewTicker(time.Duration(f.flushInterval) * time.Second)
-//	for {
-//		<-flushTicker.C
-//		err := f.FlushMetrics()
-//		if err != nil {
-//			log.Errorf("FileStorage.BackgroundFlushing error saving metrics to the disk: %v", err)
-//			continue
-//		}
-//	}
-//
-//}
+// TODO эта реализация только для filestorage
+func (a *App) BackgroundFlushing() {
+	log := logger.Log
+	log.Infof("Starting background metric flushing every %v seconds to the file %v",
+		a.config.Metrics.StoreInterval, a.config.FileStorage.FileName)
+	flushTicker := time.NewTicker(time.Duration(a.config.Metrics.StoreInterval) * time.Second)
+	for {
+		<-flushTicker.C
+		err := a.FlushMetrics()
+		if err != nil {
+			log.Errorf("FileStorage.BackgroundFlushing error saving metrics to the disk: %v", err)
+			continue
+		}
+	}
+}
 
-//func (a *App) FlushMetrics() error {
-//	log := logger.Log
-//	counter := 0
-//	f.flushLock.Lock()
-//	defer f.flushLock.Unlock()
-//	log.Infof("Start collecting metrics for flushing to the file")
-//	for _, v := range f.memStorage.Metrics {
-//		jsonMetric, err := json.Marshal(v)
-//		if err != nil {
-//			log.Errorf("FileStorage.FlushMetrics: can not marsgal metric '%v': %v", v, err)
-//			return fmt.Errorf("FileStorage.FlushMetrics: can not marshal metric '%v': %v", v, err)
-//		}
-//		_, err = f.writer.Write(jsonMetric)
-//		if err != nil {
-//			log.Errorf("FileStorage.FlushMetrics: can not write metric '%v' to the file: %v", v, err)
-//			return fmt.Errorf("FileStorage.FlushMetrics: can not write metric '%v' to the file: %v", v, err)
-//		}
-//		err = f.writer.WriteByte('\n')
-//		if err != nil {
-//			log.Errorf("FileStorage.FlushMetrics: can not write metric '%v' to the file: %v", v, err)
-//			return fmt.Errorf("FileStorage.FlushMetrics: can not write metric '%v' to the file: %v", v, err)
-//		}
-//		counter++
-//	}
-//	f.writer.Flush()
-//	log.Infof("Successfully flushed %v metrics to the file", counter)
-//	return nil
-//}
+func (a *App) FlushMetrics() error {
+	switch a.storageType {
+	case "file":
+		err := a.fileStorage.FlushMetrics()
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("flush method is not defined for this type of storage")
+	}
+	return nil
+}
 
 func main() {
 	log := logger.Log

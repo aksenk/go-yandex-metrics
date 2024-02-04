@@ -9,11 +9,10 @@ import (
 )
 
 type Config struct {
-	Storage        string
-	Server         serverConfig
-	Metrics        metricsConfig
-	FileStorage    fileStorageConfig
-	StartupRestore bool
+	Storage     string
+	Server      serverConfig
+	Metrics     metricsConfig
+	FileStorage fileStorageConfig
 }
 
 type serverConfig struct {
@@ -21,7 +20,8 @@ type serverConfig struct {
 }
 
 type metricsConfig struct {
-	StoreInterval int
+	StoreInterval  int
+	StartupRestore bool
 }
 
 type fileStorageConfig struct {
@@ -66,13 +66,13 @@ func GetConfig() (*Config, error) {
 		fileStorageStartupRestore = &v
 	}
 	return &Config{
-		Storage:        *storage,
-		StartupRestore: *fileStorageStartupRestore,
+		Storage: *storage,
 		Server: serverConfig{
 			ListenAddr: *serverListenAddr,
 		},
 		Metrics: metricsConfig{
-			StoreInterval: *metricsStoreInterval,
+			StoreInterval:  *metricsStoreInterval,
+			StartupRestore: *fileStorageStartupRestore,
 		},
 		FileStorage: fileStorageConfig{
 			FileName: *fileStorageFileName,

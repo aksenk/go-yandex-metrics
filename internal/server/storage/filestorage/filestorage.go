@@ -11,9 +11,10 @@ import (
 )
 
 type FileStorage struct {
-	fileName   *string
-	writer     *bufio.Writer
-	memStorage *memstorage.MemStorage
+	*memstorage.MemStorage
+	FileName *string
+	File     *os.File
+	Writer   *bufio.Writer
 }
 
 func NewFileStorage(filename *string) (*FileStorage, error) {
@@ -25,29 +26,31 @@ func NewFileStorage(filename *string) (*FileStorage, error) {
 	}
 	memStorage := memstorage.NewMemStorage()
 	return &FileStorage{
-		fileName:   filename,
-		writer:     bufio.NewWriter(file),
-		memStorage: memStorage,
+		MemStorage: memStorage,
+		File:       file,
+		FileName:   filename,
+		Writer:     bufio.NewWriter(file),
 	}, nil
 }
 
-func (f *FileStorage) SaveMetric(metric models.Metric) error {
-	return f.memStorage.SaveMetric(metric)
-}
-
-func (f *FileStorage) GetMetric(name string) (*models.Metric, error) {
-	return f.memStorage.GetMetric(name)
-}
-
-func (f *FileStorage) GetAllMetrics() map[string]models.Metric {
-	return f.memStorage.GetAllMetrics()
-}
+//func (f *FileStorage) SaveMetric(metric models.Metric) error {
+//	return f.SaveMetric(metric)
+//}
+//
+//func (f *FileStorage) GetMetric(name string) (*models.Metric, error) {
+//	return f.GetMetric(name)
+//}
+//
+//func (f *FileStorage) GetAllMetrics() map[string]models.Metric {
+//	return f.GetAllMetrics()
+//}
 
 func (f *FileStorage) StartupRestore() error {
 	log := logger.Log
 	counter := 0
-	log.Infof("Restoring metrics from a file '%v'", *f.fileName)
-	file, err := os.OpenFile(*f.fileName, os.O_RDONLY|os.O_CREATE, 0660)
+	log.Infof("Restoring metrics from a file '%v'", *f.FileName)
+	file, err := os.OpenFile(*f.FileName, os.O_RDONLY|os.O_CREATE, 0660)
+	defer file.Close()
 	if err != nil {
 		return fmt.Errorf("can not openfile: %v", err)
 	}
@@ -67,9 +70,33 @@ func (f *FileStorage) StartupRestore() error {
 		}
 	}
 	if scanner.Err() != nil {
-		log.Errorf("FileStorage.restoreMetrics: can not restore metrics from the fileName: %v", scanner.Err())
-		return fmt.Errorf("ileStorage.restoreMetrics: can not restore metrics from the fileName: %v", scanner.Err())
+		log.Errorf("FileStorage.restoreMetrics: can not restore metrics from the FileName: %v", scanner.Err())
+		return fmt.Errorf("ileStorage.restoreMetrics: can not restore metrics from the FileName: %v", scanner.Err())
 	}
 	log.Infof("Successfully restored %v metrics from a file", counter)
+	return nil
+}
+
+func (f *FileStorage) FlushMetrics() error {
+	log := logger.Log
+	counter := 0
+	log.Debugf("Start collecting metrics for flushing to the file")
+	for _, v := range f.Metrics {
+		jsonMetric, err := json.Marshal(v)
+		if err != nil {
+			log.Errorf("Сan not marsgal metric '%v': %v", v, err)
+			return fmt.Errorf("FileStorage.FlushMetrics: can not marshal metric '%v': %v", v, err)
+		}
+		jsonMetric = append(jsonMetric, '\n')
+		_, err = f.Writer.Write(jsonMetric)
+		if err != nil {
+			log.Errorf("Сan not write metric '%v' to the file: %v", v, err)
+			return fmt.Errorf("FileStorage.FlushMetrics: can not write metric '%v' to the file: %v", v, err)
+		}
+		counter++
+	}
+	f.File.Truncate(0)
+	f.Writer.Flush()
+	log.Infof("Successfully saved %v metrics to the file", counter)
 	return nil
 }
