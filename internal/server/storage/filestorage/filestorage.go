@@ -50,10 +50,10 @@ func (f *FileStorage) StartupRestore() error {
 	counter := 0
 	log.Infof("Restoring metrics from a file '%v'", *f.FileName)
 	file, err := os.OpenFile(*f.FileName, os.O_RDONLY|os.O_CREATE, 0660)
-	defer file.Close()
 	if err != nil {
 		return fmt.Errorf("can not openfile: %v", err)
 	}
+	defer file.Close()
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		var metric *models.Metric
