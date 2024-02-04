@@ -32,7 +32,7 @@ func (a *App) Start() error {
 
 	// TODO доделать для 0
 	if a.config.Metrics.StoreInterval > 0 {
-		go a.BackgroundFlushing()
+		go a.BackgroundFlusher()
 	}
 
 	if err := http.ListenAndServe(a.config.Server.ListenAddr, *a.router); err != nil {
@@ -62,15 +62,17 @@ func NewApp(config *config.Config) (*App, error) {
 	}
 }
 
-func (a *App) BackgroundFlushing() {
+func (a *App) BackgroundFlusher() {
 	log := logger.Log
 	log.Infof("Starting background metric flushing every %v seconds", a.config.Metrics.StoreInterval)
 	flushTicker := time.NewTicker(time.Duration(a.config.Metrics.StoreInterval) * time.Second)
 	for {
 		<-flushTicker.C
+		a.flushLock.Lock()
 		err := a.storage.FlushMetrics()
+		a.flushLock.Unlock()
 		if err != nil {
-			log.Errorf("FileStorage.BackgroundFlushing error saving metrics to the disk: %v", err)
+			log.Errorf("FileStorage.BackgroundFlusher error saving metrics to the disk: %v", err)
 			continue
 		}
 	}
