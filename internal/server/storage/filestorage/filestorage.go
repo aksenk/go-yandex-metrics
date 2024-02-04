@@ -8,48 +8,55 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
 	"os"
+	"sync"
 )
 
 type FileStorage struct {
 	*memstorage.MemStorage
-	FileName *string
-	File     *os.File
-	Writer   *bufio.Writer
+	FileName         string
+	File             *os.File
+	Writer           *bufio.Writer
+	synchronousFlush bool
+	FileLock         *sync.Mutex
 }
 
-func NewFileStorage(filename *string) (*FileStorage, error) {
+func NewFileStorage(filename string, synchronousFlush bool) (*FileStorage, error) {
 	log := logger.Log
-	file, err := os.OpenFile(*filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
 	if err != nil {
 		log.Errorf("FileStorage.NewFileStorage: can not open file '%v': %v'", filename, err)
 		return nil, fmt.Errorf("FileStorage.NewFileStorage: can not open file '%v': %v'", filename, err)
 	}
 	memStorage := memstorage.NewMemStorage()
 	return &FileStorage{
-		MemStorage: memStorage,
-		File:       file,
-		FileName:   filename,
-		Writer:     bufio.NewWriter(file),
+		MemStorage:       memStorage,
+		File:             file,
+		FileName:         filename,
+		Writer:           bufio.NewWriter(file),
+		synchronousFlush: synchronousFlush,
+		FileLock:         &sync.Mutex{},
 	}, nil
 }
 
-//func (f *FileStorage) SaveMetric(metric models.Metric) error {
-//	return f.SaveMetric(metric)
-//}
-//
-//func (f *FileStorage) GetMetric(name string) (*models.Metric, error) {
-//	return f.GetMetric(name)
-//}
-//
-//func (f *FileStorage) GetAllMetrics() map[string]models.Metric {
-//	return f.GetAllMetrics()
-//}
+func (f *FileStorage) SaveMetric(metric models.Metric) error {
+	err := f.MemStorage.SaveMetric(metric)
+	if err != nil {
+		return err
+	}
+	if f.synchronousFlush {
+		f.FlushMetrics()
+	}
+	return nil
+}
 
 func (f *FileStorage) StartupRestore() error {
 	log := logger.Log
 	counter := 0
-	log.Infof("Restoring metrics from a file '%v'", *f.FileName)
-	file, err := os.OpenFile(*f.FileName, os.O_RDONLY|os.O_CREATE, 0660)
+	log.Infof("Restoring metrics from a file '%v'", f.FileName)
+	// saving current state of synchronousFlush because we need to disable it for startup restoring
+	sf := f.synchronousFlush
+	f.synchronousFlush = false
+	file, err := os.OpenFile(f.FileName, os.O_RDONLY|os.O_CREATE, 0660)
 	if err != nil {
 		return fmt.Errorf("can not openfile: %v", err)
 	}
@@ -74,6 +81,8 @@ func (f *FileStorage) StartupRestore() error {
 		return fmt.Errorf("ileStorage.restoreMetrics: can not restore metrics from the FileName: %v", scanner.Err())
 	}
 	log.Infof("Successfully restored %v metrics from a file", counter)
+	// restoring state of synchronousFlush
+	f.synchronousFlush = sf
 	return nil
 }
 
@@ -95,9 +104,11 @@ func (f *FileStorage) FlushMetrics() error {
 		}
 		counter++
 	}
-	log.Infof("Start saving metrics %v metrics to the file", counter)
+	log.Infof("Start saving %v metrics to the file", counter)
+	f.FileLock.Lock()
 	f.File.Truncate(0)
 	f.Writer.Flush()
+	f.FileLock.Unlock()
 	log.Infof("Metrics successfully saved")
 	return nil
 }

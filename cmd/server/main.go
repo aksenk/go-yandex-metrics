@@ -8,6 +8,7 @@ import (
 
 func main() {
 	log := logger.Log
+
 	config, err := config.GetConfig()
 	if err != nil {
 		log.Fatalf("can not create app config: %v", err)
