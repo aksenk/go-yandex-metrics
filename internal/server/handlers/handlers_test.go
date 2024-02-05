@@ -27,11 +27,11 @@ func (m *MemStorageDummy) GetAllMetrics() map[string]models.Metric {
 	return make(map[string]models.Metric)
 }
 
-func (s *MemStorageDummy) FlushMetrics() error {
+func (m *MemStorageDummy) FlushMetrics() error {
 	return nil
 }
 
-func (s *MemStorageDummy) StartupRestore() error {
+func (m *MemStorageDummy) StartupRestore() error {
 	return nil
 }
 
