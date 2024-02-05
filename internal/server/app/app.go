@@ -38,6 +38,17 @@ func (a *App) Start() error {
 	return nil
 }
 
+func (a *App) Stop() error {
+	log := logger.Log
+	log.Infof("Starting the shutdown of the application")
+	err := a.storage.FlushMetrics()
+	if err != nil {
+		return err
+	}
+	log.Infof("Shutdown completed")
+	return nil
+}
+
 func NewApp(config *config.Config) (*App, error) {
 	log := logger.Log
 

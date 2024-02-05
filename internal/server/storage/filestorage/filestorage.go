@@ -104,7 +104,7 @@ func (f *FileStorage) FlushMetrics() error {
 		}
 		counter++
 	}
-	log.Infof("Start saving %v metrics to the file", counter)
+	log.Debugf("Start saving %v metrics to the file", counter)
 	f.FileLock.Lock()
 	f.File.Truncate(0)
 	f.Writer.Flush()
