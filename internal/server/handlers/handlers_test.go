@@ -15,15 +15,15 @@ type MemStorageDummy struct {
 	Dummy string
 }
 
-func (m MemStorageDummy) SaveMetric(metric models.Metric) error {
+func (m *MemStorageDummy) SaveMetric(metric models.Metric) error {
 	return nil
 }
 
-func (m MemStorageDummy) GetMetric(name string) (*models.Metric, error) {
+func (m *MemStorageDummy) GetMetric(name string) (*models.Metric, error) {
 	return &models.Metric{}, nil
 }
 
-func (m MemStorageDummy) GetAllMetrics() map[string]models.Metric {
+func (m *MemStorageDummy) GetAllMetrics() map[string]models.Metric {
 	return make(map[string]models.Metric)
 }
 

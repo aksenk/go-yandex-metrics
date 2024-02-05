@@ -28,11 +28,12 @@ func (g gzipResponseWriter) Write(b []byte) (int, error) {
 
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		log := logger.Log
 		var nextResponseWriter http.ResponseWriter
 		if strings.Contains(request.Header.Get("Content-Encoding"), "gzip") {
 			gr, err := gzip.NewReader(request.Body)
 			if err != nil {
-				logger.Log.Errorf("Can not ungzip incoming reeuest data: %v", err)
+				log.Errorf("Can not ungzip incoming reeuest data: %v", err)
 				http.Error(writer, "can not ungzip request data", http.StatusInternalServerError)
 				return
 			}
@@ -44,7 +45,7 @@ func Middleware(next http.Handler) http.Handler {
 		}
 
 		if strings.Contains(request.Header.Get("Accept-Encoding"), "gzip") {
-			allowedGzipContentTypes := []string{"application/json", "text/html"}
+			allowedGzipContentTypes := []string{"application/json", "text/html", ""}
 			requestContentType := request.Header.Get("Content-Type")
 			isAllowedContentType := false
 			for _, ct := range allowedGzipContentTypes {
@@ -53,7 +54,7 @@ func Middleware(next http.Handler) http.Handler {
 				}
 			}
 			if isAllowedContentType {
-				logger.Log.Debugf("The client requested compressed data. The response will be gzipped")
+				log.Debugf("The client requested compressed data. The response will be gzipped")
 				// TODO отказаться от gzip.NewWriterLevel() и использовать метод gzip.Reset()
 				gzw, _ := gzip.NewWriterLevel(writer, gzip.BestSpeed)
 				defer gzw.Close()
@@ -63,8 +64,7 @@ func Middleware(next http.Handler) http.Handler {
 				}
 				nextResponseWriter.Header().Set("Content-Encoding", "gzip")
 			} else {
-				logger.Log.Debugf("Header 'Accept-Encoding: gzip' is exist, "+
-					"but this content-type is not allowed for gzipping: %v", requestContentType)
+				log.Debugf("Header 'Accept-Encoding: gzip' is exist, but this content-type is not allowed for gzipping: %v", requestContentType)
 				nextResponseWriter = writer
 			}
 		} else {
