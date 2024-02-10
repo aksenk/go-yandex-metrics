@@ -44,7 +44,7 @@ func NewConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if *pollInterval > *reportInterval {
+	if pollIntervalInt > reportIntervalInt {
 		return nil, fmt.Errorf("poll interval can not be more that report interval")
 	}
 	serverUseHTTPSBool, err := strconv.ParseBool(*serverUseHTTPS)
