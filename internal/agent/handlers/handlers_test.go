@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"compress/gzip"
+	"encoding/json"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,7 +24,7 @@ func Test_sendMetrics(t *testing.T) {
 		metrics []metric
 	}{
 		{
-			name: "successful test",
+			name: "test counter metric",
 			metrics: []metric{
 				{
 					Name:  "TestMetric",
@@ -31,7 +34,7 @@ func Test_sendMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "unsuccessful test",
+			name: "test gauge metric",
 			metrics: []metric{
 				{
 					Name:  "TestMetric",
@@ -40,19 +43,30 @@ func Test_sendMetrics(t *testing.T) {
 				},
 			},
 		},
+		// отправку некорректных метрик не делаем, потому что некорректные метрики
+		// отсекаются функцией models.NewMetric()
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				requiredURL := "/update"
-				if r.Method != http.MethodPost {
-					t.Error("HTTP method is not POST")
-				}
-				if r.Header.Get("Content-Type") != "application/json" {
-					t.Error("Header 'Content-Type' is not 'application-json'")
-				}
+				// проверяем корректность http запроса
+				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+				assert.Equal(t, "gzip", r.Header.Get("Accept-Encoding"))
+				assert.Equal(t, "gzip", r.Header.Get("Content-Encoding"))
 				assert.Equal(t, requiredURL, r.URL.RequestURI())
-				w.Write([]byte(r.URL.RequestURI()))
+				// распаковываем gzip данные
+				gz, err := gzip.NewReader(r.Body)
+				assert.NoError(t, err)
+				body, err := io.ReadAll(gz)
+				assert.NoError(t, err)
+				// пробуем распарсить данные в структуру метрики
+				var m models.Metric
+				err = json.Unmarshal(body, &m)
+				assert.NoError(t, err)
+				t.Log("Received request with correct gzipped json metric")
+				w.Write(body)
 			}))
 			defer s.Close()
 			var metrics []models.Metric

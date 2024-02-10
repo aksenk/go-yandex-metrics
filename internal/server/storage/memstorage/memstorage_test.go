@@ -26,7 +26,7 @@ func TestMemStorage_GetMetric(t *testing.T) {
 			name:          "successful test: get existing metric",
 			getMetricName: "test_metric",
 			existingMetrics: map[string]metric{
-				"test_metric": metric{
+				"test_metric": {
 					Name:  "test_metric",
 					Type:  "gauge",
 					Value: "1",
@@ -301,6 +301,56 @@ func TestNewMemStorage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := NewMemStorage(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NewMemStorage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMemStorage_GetAllMetrics(t *testing.T) {
+	type metric struct {
+		Name  string
+		Type  string
+		Value any
+	}
+	tests := []struct {
+		name            string
+		existingMetrics map[string]metric
+		want            []string
+	}{
+		{
+			name: "successful test: get existing metric",
+			want: []string{"test_metric1", "test_metric2"},
+			existingMetrics: map[string]metric{
+				"test_metric1": {
+					Name:  "test_metric1",
+					Type:  "gauge",
+					Value: "1.23",
+				},
+				"test_metric2": {
+					Name:  "test_metric2",
+					Type:  "counter",
+					Value: "123",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existingMetrics := make(map[string]models.Metric)
+			for _, m := range tt.existingMetrics {
+				nm, err := models.NewMetric(m.Name, m.Type, m.Value)
+				require.NoError(t, err)
+				existingMetrics[m.Name] = nm
+			}
+			storage := MemStorage{
+				Metrics: existingMetrics,
+				mu:      sync.Mutex{},
+			}
+			got := storage.GetAllMetrics()
+			for _, w := range tt.want {
+				if _, ok := got[w]; !ok {
+					t.Errorf("GetAllMetrics() = metric with name '%v' does not contains in result metrics: %v", w, got)
+				}
 			}
 		})
 	}
