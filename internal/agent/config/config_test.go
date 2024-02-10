@@ -23,11 +23,12 @@ func TestNewConfig(t *testing.T) {
 	}
 	t.Run("test NewConfig()", func(t *testing.T) {
 		var gotConfig interface{}
-
+		var err error
 		for k, v := range overrideEnv {
 			t.Setenv(k, v)
 		}
-		gotConfig = NewConfig()
+		gotConfig, err = NewConfig()
+		require.NoError(t, err)
 		if _, ok := gotConfig.(*Config); !ok {
 			t.Fatalf("Resulting object have incorrect type (not equal Config struct)")
 		}

@@ -11,9 +11,9 @@ import (
 
 func main() {
 	log := logger.Log
-	cfg := config.NewConfig()
-	if cfg.PollInterval > cfg.ReportInterval {
-		log.Fatalf("Poll interval can not be more that report interval")
+	cfg, err := config.NewConfig()
+	if err != nil {
+		log.Fatalf("Error creating config: %v", err)
 	}
 	runtimeRequiredMetrics := []string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc",
 		"HeapIdle", "HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups",

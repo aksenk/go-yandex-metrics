@@ -1,15 +1,10 @@
 package models
 
 import (
-	"errors"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/converter"
 	"strconv"
 )
-
-var errIncorrectType = errors.New("incorrect metric type")
-
-//var errIncorrectValue = errors.New("incorrect metric value")
 
 // TODO вопрос зачем делать указатели на int64 float64 ?
 type Metric struct {
@@ -42,5 +37,5 @@ func NewMetric(name, mtype string, value any) (Metric, error) {
 		}
 		return Metric{ID: name, MType: mtype, Delta: &intValue}, nil
 	}
-	return Metric{}, errIncorrectType
+	return Metric{}, fmt.Errorf("incorrect metric type")
 }

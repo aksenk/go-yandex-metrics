@@ -1,6 +1,9 @@
 package models
 
 import (
+	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -56,7 +59,83 @@ func TestMetric_String(t *testing.T) {
 				t.Errorf("Delta and value: both values cannot be non-zero at the same time")
 			}
 			if got := m.String(); got != tt.want {
-				t.Errorf("String() = %v, want %v", got, tt.want)
+				t.Errorf("String() = %v, metricRaw %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewMetric(t *testing.T) {
+	type metricRaw struct {
+		name  string
+		mtype string
+		value any
+	}
+	tests := []struct {
+		name    string
+		args    metricRaw
+		want    metricRaw
+		wantErr bool
+	}{
+		{
+			name: "successfully test gauge",
+			want: metricRaw{
+				name:  "testGauge",
+				mtype: "gauge",
+				value: 10.123,
+			},
+			args: metricRaw{
+				name:  "testGauge",
+				mtype: "gauge",
+				value: 10.123,
+			},
+			wantErr: false,
+		},
+		{
+			name: "successfully test counter",
+			want: metricRaw{
+				name:  "testCounter",
+				mtype: "counter",
+				value: 11,
+			},
+			args: metricRaw{
+				name:  "testCounter",
+				mtype: "counter",
+				value: 11,
+			},
+			wantErr: false,
+		},
+		{
+			name: "unsuccessfully test",
+			want: metricRaw{
+				name:  "testGauge",
+				mtype: "gauge",
+				value: 10.123,
+			},
+			args: metricRaw{
+				name:  "incorrect",
+				mtype: "counter",
+				value: 10,
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got interface{}
+			got, err := NewMetric(tt.args.name, tt.args.mtype, tt.args.value)
+			require.NoError(t, err)
+			if _, ok := got.(Metric); !ok {
+				t.Errorf("NewMetric() got = %v, metricRaw Metric struct", got)
+			}
+			if tt.wantErr {
+				assert.NotEqual(t, tt.want.name, got.(Metric).ID)
+				assert.NotEqual(t, tt.want.mtype, got.(Metric).MType)
+				assert.NotEqual(t, fmt.Sprintf("%v", tt.want.value), got.(Metric).String())
+			} else {
+				assert.Equal(t, tt.want.name, got.(Metric).ID)
+				assert.Equal(t, tt.want.mtype, got.(Metric).MType)
+				assert.Equal(t, fmt.Sprintf("%v", tt.want.value), got.(Metric).String())
 			}
 		})
 	}

@@ -3,7 +3,6 @@ package config
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"time"
@@ -16,7 +15,7 @@ type Config struct {
 	ReportInterval time.Duration
 }
 
-func NewConfig() *Config {
+func NewConfig() (*Config, error) {
 	var serverURL string
 	var err error
 	serverUseHTTPS := flag.String("s", "false", "Use HTTPS connection to the server")
@@ -39,15 +38,18 @@ func NewConfig() *Config {
 	}
 	reportIntervalInt, err := strconv.Atoi(*reportInterval)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	pollIntervalInt, err := strconv.Atoi(*pollInterval)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
+	}
+	if *pollInterval > *reportInterval {
+		return nil, fmt.Errorf("poll interval can not be more that report interval")
 	}
 	serverUseHTTPSBool, err := strconv.ParseBool(*serverUseHTTPS)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	if serverUseHTTPSBool {
 		serverURL = fmt.Sprintf("https://%v/update", *serverAddr)
@@ -60,5 +62,5 @@ func NewConfig() *Config {
 		ServerURL:      serverURL,
 		PollInterval:   time.Second * time.Duration(pollIntervalInt),
 		ReportInterval: time.Second * time.Duration(reportIntervalInt),
-	}
+	}, nil
 }
