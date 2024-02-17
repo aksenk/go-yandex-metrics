@@ -1,12 +1,14 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/server/config"
 	"github.com/aksenk/go-yandex-metrics/internal/server/handlers"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/filestorage"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage/postgres"
 	"github.com/go-chi/chi/v5"
 	"net/http"
 	"time"
@@ -52,14 +54,16 @@ func (a *App) Stop() error {
 func NewApp(config *config.Config) (*App, error) {
 	log := logger.Log
 
+	log.Infof("Starting %v storage initialization", config.Storage)
+	synchronousFlush := false
+	if config.Metrics.StoreInterval == 0 {
+		log.Infof("Synchronous flushing is enabled")
+		synchronousFlush = true
+	}
+
 	switch config.Storage {
+
 	case "file":
-		log.Infof("Starting %v storage initialization", config.Storage)
-		synchronousFlush := false
-		if config.Metrics.StoreInterval == 0 {
-			log.Infof("Synchronous flushing is enabled")
-			synchronousFlush = true
-		}
 		s, err := filestorage.NewFileStorage(config.FileStorage.FileName, synchronousFlush)
 		if err != nil {
 			return nil, fmt.Errorf("can not init fileStorage: %v", err)
@@ -69,8 +73,20 @@ func NewApp(config *config.Config) (*App, error) {
 			storage: s,
 			router:  &r,
 			config:  config,
-			//flushLock: &sync.Mutex{},
 		}, nil
+
+	case "postgres":
+		s, err := postgres.NewPostgresStorage(context.TODO(), config.Database.DSN, time.Duration(10*time.Second), log)
+		if err != nil {
+			return nil, fmt.Errorf("can not init postgresStorage: %v", err)
+		}
+		r := handlers.NewRouter(s)
+		return &App{
+			storage: s,
+			router:  &r,
+			config:  config,
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("unknown storage type: %v", config.Storage)
 	}

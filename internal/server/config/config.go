@@ -13,6 +13,7 @@ type Config struct {
 	Server      serverConfig
 	Metrics     metricsConfig
 	FileStorage fileStorageConfig
+	Database    databaseConfig
 }
 
 type serverConfig struct {
@@ -28,14 +29,31 @@ type fileStorageConfig struct {
 	FileName string
 }
 
+type databaseConfig struct {
+	DSN  string
+	Type string
+}
+
 func GetConfig() (*Config, error) {
 	log := logger.Log
-	storage := flag.String("s", "file", "Storage type")
+	// TODO storage type должно иметь фиксированные значения
+	storage := flag.String("s", "postgres", "Storage type")
 	serverListenAddr := flag.String("a", "localhost:8080", "host:port for server listening")
 	metricsStoreInterval := flag.Int("i", 300, "Period in seconds between flushing metrics to the disk")
 	fileStorageFileName := flag.String("f", "/tmp/metrics-db.json", "Path to the file for storing metrics")
 	fileStorageStartupRestore := flag.Bool("r", true, "Restoring metrics from the file at startup")
+	databaseDSN := flag.String("d", "", "Database DSN string")
+	// TODO database type должно иметь фиксированные значения
+	databaseType := flag.String("dt", "postgres", "Database type")
+
 	flag.Parse()
+
+	if e := os.Getenv("DATABASE_TYPE"); e != "" {
+		databaseType = &e
+	}
+	if e := os.Getenv("DATABASE_DSN"); e != "" {
+		databaseDSN = &e
+	}
 	if e := os.Getenv("STORAGE"); e != "" {
 		storage = &e
 	}
@@ -64,6 +82,9 @@ func GetConfig() (*Config, error) {
 		}
 		fileStorageStartupRestore = &v
 	}
+	if *databaseType != "postgres" {
+		return nil, fmt.Errorf("only postgres database is supported")
+	}
 	return &Config{
 		Storage: *storage,
 		Server: serverConfig{
@@ -75,6 +96,10 @@ func GetConfig() (*Config, error) {
 		},
 		FileStorage: fileStorageConfig{
 			FileName: *fileStorageFileName,
+		},
+		Database: databaseConfig{
+			DSN:  *databaseDSN,
+			Type: *databaseType,
 		},
 	}, nil
 }
