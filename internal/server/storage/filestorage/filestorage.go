@@ -2,6 +2,7 @@ package filestorage
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
@@ -110,5 +111,13 @@ func (f *FileStorage) FlushMetrics() error {
 	f.Writer.Flush()
 	f.FileLock.Unlock()
 	log.Infof("Metrics successfully saved")
+	return nil
+}
+
+func (f *FileStorage) Close() error {
+	return f.File.Close()
+}
+
+func (f *FileStorage) Status(ctx context.Context) error {
 	return nil
 }

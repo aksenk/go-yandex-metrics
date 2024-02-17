@@ -31,10 +31,6 @@ func NewPostgresStorage(ctx context.Context, connectionString string, timeout ti
 	}, nil
 }
 
-func (p *PostgresStorage) Close() error {
-	return p.db.Close()
-}
-
 func (p *PostgresStorage) SaveMetric(metric models.Metric) error {
 	return nil
 }
@@ -53,4 +49,23 @@ func (p *PostgresStorage) StartupRestore() error {
 
 func (p *PostgresStorage) FlushMetrics() error {
 	return nil
+}
+
+func (p *PostgresStorage) Status(ctx context.Context) error {
+	p.log.Debugf("Checking postgres connection")
+	timeout := 3 * time.Second
+	DBCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	err := p.db.PingContext(DBCtx)
+	if err != nil {
+		p.log.Errorf("Postgres connection is not OK: %v", err)
+		return err
+	}
+	p.log.Debugf("Postgres connection is OK")
+	return nil
+}
+
+func (p *PostgresStorage) Close() error {
+	p.log.Debugf("Closing postgres connection")
+	return p.db.Close()
 }

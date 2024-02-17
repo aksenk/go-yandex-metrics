@@ -1,6 +1,7 @@
 package memstorage
 
 import (
+	"context"
 	"errors"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"sync"
@@ -45,5 +46,13 @@ func (s *MemStorage) FlushMetrics() error {
 }
 
 func (s *MemStorage) StartupRestore() error {
+	return nil
+}
+
+func (s *MemStorage) Close() error {
+	return nil
+}
+
+func (s *MemStorage) Status(ctx context.Context) error {
 	return nil
 }

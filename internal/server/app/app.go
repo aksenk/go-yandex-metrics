@@ -43,7 +43,13 @@ func (a *App) Start() error {
 func (a *App) Stop() error {
 	log := logger.Log
 	log.Infof("Starting the shutdown of the application")
+	log.Infof("Flushing metrics")
 	err := a.storage.FlushMetrics()
+	if err != nil {
+		return err
+	}
+	log.Infof("Closing storage")
+	err = a.storage.Close()
 	if err != nil {
 		return err
 	}
@@ -76,7 +82,7 @@ func NewApp(config *config.Config) (*App, error) {
 		}, nil
 
 	case "postgres":
-		s, err := postgres.NewPostgresStorage(context.TODO(), config.Database.DSN, time.Duration(10*time.Second), log)
+		s, err := postgres.NewPostgresStorage(context.TODO(), config.Database.DSN, 10*time.Second, log)
 		if err != nil {
 			return nil, fmt.Errorf("can not init postgresStorage: %v", err)
 		}

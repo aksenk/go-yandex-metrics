@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 )
 
@@ -12,4 +13,6 @@ type Storager interface {
 	GetAllMetrics() map[string]models.Metric
 	StartupRestore() error
 	FlushMetrics() error
+	Close() error
+	Status(ctx context.Context) error
 }

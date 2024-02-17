@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
@@ -24,6 +25,7 @@ func NewRouter(s storage.Storager) chi.Router {
 	r.Use(middleware.Timeout(time.Second * 5))
 	r.Use(compress.Middleware)
 	r.Get("/", ListAllMetrics(s))
+	r.Get("/ping", Ping(s))
 	// TODO почему-то в ответе дублируется текст "Allow: POST" например при запросе GET /update/
 	r.Route("/value", func(r chi.Router) {
 		r.Post("/", JSONGetMetricHandler(s))
@@ -41,6 +43,17 @@ func NewRouter(s storage.Storager) chi.Router {
 	})
 	r.Get("/value/{type}/{name}", PlainGetMetricHandler(s))
 	return r
+}
+
+func Ping(storage storage.Storager) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		err := storage.Status(context.TODO())
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		writer.WriteHeader(http.StatusOK)
+	}
 }
 
 func ListAllMetrics(storage storage.Storager) http.HandlerFunc {

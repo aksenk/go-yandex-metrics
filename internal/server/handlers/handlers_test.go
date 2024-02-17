@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,14 @@ func (m *MemStorageDummy) FlushMetrics() error {
 }
 
 func (m *MemStorageDummy) StartupRestore() error {
+	return nil
+}
+
+func (m *MemStorageDummy) Close() error {
+	return nil
+}
+
+func (m *MemStorageDummy) Status(ctx context.Context) error {
 	return nil
 }
 
