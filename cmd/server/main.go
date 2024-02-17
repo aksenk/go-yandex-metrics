@@ -1,26 +1,43 @@
 package main
 
 import (
-	"flag"
-	"github.com/aksenk/go-yandex-metrics/internal/server/handlers"
-	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
-	"log"
-	"net/http"
+	"context"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
+	"github.com/aksenk/go-yandex-metrics/internal/server/app"
+	"github.com/aksenk/go-yandex-metrics/internal/server/config"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
-// TODO просто вопрос: как запускать тесты сразу по всем директориям?
 func main() {
-	listenAddr := flag.String("a", "localhost:8080", "host:port for server listening")
-	flag.Parse()
-	if e := os.Getenv("ADDRESS"); e != "" {
-		listenAddr = &e
-	}
+	log := logger.Log
+	ctx, cancel := context.WithCancel(context.Background())
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		signal := <-signals
+		log.Infof("Received %v signal", signal)
+		cancel()
+	}()
 
-	s := memstorage.NewMemStorage()
-	r := handlers.NewRouter(s)
-	log.Printf("Starting web server on %v", *listenAddr)
-	if err := http.ListenAndServe(*listenAddr, r); err != nil {
-		log.Fatalf("Error starting server: %v", err)
+	config, err := config.GetConfig()
+	if err != nil {
+		log.Fatalf("can not create app config: %v", err)
+	}
+	app, err := app.NewApp(config)
+	if err != nil {
+		log.Fatalf("Application initialization error: %v", err)
+	}
+	go func() {
+		err = app.Start()
+		if err != nil {
+			log.Fatalf("Application launch error: %v", err)
+		}
+	}()
+	<-ctx.Done()
+	err = app.Stop()
+	if err != nil {
+		log.Fatalf("Shutdown error: %v", err)
 	}
 }

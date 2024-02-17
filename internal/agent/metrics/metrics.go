@@ -1,14 +1,13 @@
 package metrics
 
 import (
-	"fmt"
+	"github.com/aksenk/go-yandex-metrics/internal/converter"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/fatih/structs"
-	"log"
 	"math/rand"
 	"runtime"
 	"slices"
-	"strconv"
 	"time"
 )
 
@@ -19,37 +18,21 @@ func getSystemMetrics() map[string]interface{} {
 	return structs.Map(m)
 }
 
-func convertToFloat64(v interface{}) (float64, error) {
-	var value float64
-	switch ty := v.(type) {
-	case uint32:
-		value, _ = strconv.ParseFloat(strconv.Itoa(int(ty)), 64)
-		return value, nil
-	case uint64:
-		value, _ = strconv.ParseFloat(strconv.FormatUint(ty, 10), 64)
-		return value, nil
-	case float64:
-		return ty, nil
-	default:
-		log.Printf("unknown type:%v\n", ty)
-		return value, fmt.Errorf("%s: %s", "unknown value type", ty)
-	}
-}
-
 func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Metric {
+	log := logger.Log
 	var resultMetrics []models.Metric
 	for k, v := range m {
 		var t models.Metric
 		if contains := slices.Contains(r, k); contains {
-			float64Value, err := convertToFloat64(v)
+			float64Value, err := converter.AnyToFloat64(v)
 			if err != nil {
-				log.Printf("error: %s", err)
+				log.Errorf("error: %s", err)
 				continue
 			}
 			t = models.Metric{
-				Name:  k,
-				Type:  "gauge",
-				Value: float64Value,
+				ID:    k,
+				MType: "gauge",
+				Value: &float64Value,
 			}
 			resultMetrics = append(resultMetrics, t)
 		}
@@ -59,42 +42,37 @@ func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Met
 
 func generateCustomMetrics(p *models.Metric, r *models.Metric, c *int64) {
 	*c += int64(1)
+	rnd := rand.Float64()
 	*p = models.Metric{
-		Name:  "PollCount",
-		Type:  "counter",
-		Value: *c,
+		ID:    "PollCount",
+		MType: "counter",
+		Delta: c,
 	}
 	*r = models.Metric{
-		Name:  "RandomValue",
-		Type:  "gauge",
-		Value: rand.Float64(),
+		ID:    "RandomValue",
+		MType: "gauge",
+		Value: &rnd,
 	}
 }
 
 func GetMetrics(c chan []models.Metric, s time.Duration, runtimeRequiredMetrics []string) {
 	pollCounter := int64(0)
 	var pollCountMetric, randomValueMetric models.Metric
-
 	for {
 		systemMetrics := getSystemMetrics()
 		resultMetrics := getRequiredSystemMetrics(systemMetrics, runtimeRequiredMetrics)
-		//log.Printf("system: %+v", resultMetrics)
 
 		generateCustomMetrics(&pollCountMetric, &randomValueMetric, &pollCounter)
 		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)
 		select {
 		// если канал пуст - помещаем туда данные
 		case c <- resultMetrics:
-			//log.Printf("sent handlers to the channel")
 		// если в канале уже есть данные
 		default:
-			//log.Printf("read")
 			// вычитываем их
 			<-c
-			//log.Printf("sent")
 			// помещаем туда новые данные
 			c <- resultMetrics
-			//log.Printf("exit")
 		}
 		time.Sleep(s)
 	}

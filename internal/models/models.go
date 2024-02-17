@@ -1,51 +1,41 @@
 package models
 
 import (
-	"errors"
-	"net/http"
+	"fmt"
+	"github.com/aksenk/go-yandex-metrics/internal/converter"
 	"strconv"
 )
 
+// TODO вопрос зачем делать указатели на int64 float64 ?
 type Metric struct {
-	Name  string
-	Type  string
-	Value any
+	ID    string   `json:"id"`              // имя метрики
+	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
-type Server struct {
-	ListenAddr string
-	ListenURL  string
-	Handler    http.HandlerFunc
-}
-
-func NewMetric(metricName, metricType, metricValue string) (*Metric, error) {
-	valueErr := errors.New("incorrect metric value")
-	typeErr := errors.New("incorrect metric type")
-	var newMetric Metric
-
-	switch metricType {
-	case "gauge":
-		if newValue, err := strconv.ParseFloat(metricValue, 64); err == nil {
-			newMetric = Metric{
-				Name:  metricName,
-				Type:  metricType,
-				Value: newValue,
-			}
-		} else {
-			return &newMetric, valueErr
-		}
-	case "counter":
-		if newValue, err := strconv.ParseInt(metricValue, 10, 64); err == nil {
-			newMetric = Metric{
-				Name:  metricName,
-				Type:  metricType,
-				Value: newValue,
-			}
-		} else {
-			return &newMetric, valueErr
-		}
-	default:
-		return &newMetric, typeErr
+func (m Metric) String() string {
+	if m.Delta != nil {
+		return strconv.FormatInt(*m.Delta, 10)
+	} else if m.Value != nil {
+		return fmt.Sprintf("%g", *m.Value)
 	}
-	return &newMetric, nil
+	return ""
+}
+
+func NewMetric(name, mtype string, value any) (Metric, error) {
+	if mtype == "gauge" {
+		flValue, err := converter.AnyToFloat64(value)
+		if err != nil {
+			return Metric{}, err
+		}
+		return Metric{ID: name, MType: mtype, Value: &flValue}, nil
+	} else if mtype == "counter" {
+		intValue, err := converter.AnyToInt64(value)
+		if err != nil {
+			return Metric{}, err
+		}
+		return Metric{ID: name, MType: mtype, Delta: &intValue}, nil
+	}
+	return Metric{}, fmt.Errorf("incorrect metric type")
 }

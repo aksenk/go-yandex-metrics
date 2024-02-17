@@ -6,11 +6,6 @@ import (
 	"sync"
 )
 
-var (
-	errMetricType  = errors.New("incorrect metric type")
-	errMetricValue = errors.New("incorrect metric value")
-)
-
 type MemStorage struct {
 	Metrics map[string]models.Metric
 	mu      sync.Mutex
@@ -22,10 +17,10 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
-func (s *MemStorage) SaveMetric(m *models.Metric) error {
+func (s *MemStorage) SaveMetric(m models.Metric) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Metrics[m.Name] = *m
+	s.Metrics[m.ID] = m
 	return nil
 }
 
@@ -43,4 +38,12 @@ func (s *MemStorage) GetAllMetrics() map[string]models.Metric {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.Metrics
+}
+
+func (s *MemStorage) FlushMetrics() error {
+	return nil
+}
+
+func (s *MemStorage) StartupRestore() error {
+	return nil
 }

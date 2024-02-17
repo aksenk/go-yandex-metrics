@@ -15,16 +15,24 @@ type MemStorageDummy struct {
 	Dummy string
 }
 
-func (m MemStorageDummy) SaveMetric(metric *models.Metric) error {
+func (m *MemStorageDummy) SaveMetric(metric models.Metric) error {
 	return nil
 }
 
-func (m MemStorageDummy) GetMetric(name string) (*models.Metric, error) {
+func (m *MemStorageDummy) GetMetric(name string) (*models.Metric, error) {
 	return &models.Metric{}, nil
 }
 
-func (m MemStorageDummy) GetAllMetrics() map[string]models.Metric {
+func (m *MemStorageDummy) GetAllMetrics() map[string]models.Metric {
 	return make(map[string]models.Metric)
+}
+
+func (m *MemStorageDummy) FlushMetrics() error {
+	return nil
+}
+
+func (m *MemStorageDummy) StartupRestore() error {
+	return nil
 }
 
 func TestUpdateMetric(t *testing.T) {
@@ -136,20 +144,25 @@ func TestUpdateMetric(t *testing.T) {
 }
 
 func TestGetMetric(t *testing.T) {
+	type metric struct {
+		Name  string
+		Type  string
+		Value any
+	}
 	tests := []struct {
 		name           string
-		storageMetrics map[string]models.Metric
+		storageMetrics map[string]metric
 		requestURL     string
 		wantCode       int
 		wantBody       string
 	}{
 		{
 			name: "successful test: gauge",
-			storageMetrics: map[string]models.Metric{
+			storageMetrics: map[string]metric{
 				"test": {
 					Name:  "test",
 					Type:  "gauge",
-					Value: float64(10.123),
+					Value: 10.123,
 				},
 			},
 			requestURL: "/value/gauge/test",
@@ -158,11 +171,11 @@ func TestGetMetric(t *testing.T) {
 		},
 		{
 			name: "successful test: counter",
-			storageMetrics: map[string]models.Metric{
+			storageMetrics: map[string]metric{
 				"test": {
 					Name:  "test",
 					Type:  "counter",
-					Value: int64(5),
+					Value: 5,
 				},
 			},
 			requestURL: "/value/counter/test",
@@ -171,11 +184,11 @@ func TestGetMetric(t *testing.T) {
 		},
 		{
 			name: "unsuccessful test: gauge",
-			storageMetrics: map[string]models.Metric{
+			storageMetrics: map[string]metric{
 				"test": {
 					Name:  "test",
 					Type:  "gauge",
-					Value: float64(10.123),
+					Value: 10.123,
 				},
 			},
 			requestURL: "/value/counter/test",
@@ -184,11 +197,11 @@ func TestGetMetric(t *testing.T) {
 		},
 		{
 			name: "unsuccessful test: counter",
-			storageMetrics: map[string]models.Metric{
+			storageMetrics: map[string]metric{
 				"test": {
 					Name:  "test",
 					Type:  "counter",
-					Value: int64(5),
+					Value: 5,
 				},
 			},
 			requestURL: "/value/gauge/test",
@@ -197,35 +210,35 @@ func TestGetMetric(t *testing.T) {
 		},
 		{
 			name:           "unsuccessful test: without metric type",
-			storageMetrics: map[string]models.Metric{},
+			storageMetrics: map[string]metric{},
 			requestURL:     "/value/",
 			wantCode:       400,
 			wantBody:       "Missing metric type\n",
 		},
 		{
 			name:           "unsuccessful test: without metric name",
-			storageMetrics: map[string]models.Metric{},
+			storageMetrics: map[string]metric{},
 			requestURL:     "/value/gauge/",
 			wantCode:       404,
 			wantBody:       "Missing metric name\n",
 		},
 		{
 			name:           "unsuccessful test: with a slash at the end",
-			storageMetrics: map[string]models.Metric{},
+			storageMetrics: map[string]metric{},
 			requestURL:     "/value/gauge/test/",
 			wantCode:       404,
 			wantBody:       "404 page not found\n",
 		},
 		{
 			name:           "unsuccessful test: missing gauge metric",
-			storageMetrics: map[string]models.Metric{},
+			storageMetrics: map[string]metric{},
 			requestURL:     "/value/gauge/test",
 			wantCode:       404,
 			wantBody:       "Error receiving metric: metric not found\n",
 		},
 		{
 			name:           "unsuccessful test: missing counter metric",
-			storageMetrics: map[string]models.Metric{},
+			storageMetrics: map[string]metric{},
 			requestURL:     "/value/counter/test",
 			wantCode:       404,
 			wantBody:       "Error receiving metric: metric not found\n",
@@ -233,8 +246,14 @@ func TestGetMetric(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			storageMetrics := make(map[string]models.Metric)
+			for _, m := range tt.storageMetrics {
+				nm, err := models.NewMetric(m.Name, m.Type, m.Value)
+				require.NoError(t, err)
+				storageMetrics[m.Name] = nm
+			}
 			storage := &memstorage.MemStorage{
-				Metrics: tt.storageMetrics,
+				Metrics: storageMetrics,
 			}
 			server := httptest.NewServer(NewRouter(storage))
 			response, err := server.Client().Get(server.URL + tt.requestURL)
@@ -250,26 +269,31 @@ func TestGetMetric(t *testing.T) {
 }
 
 func TestListAllMetrics(t *testing.T) {
+	type metric struct {
+		Name  string
+		Type  string
+		Value any
+	}
 	tests := []struct {
 		name     string
-		metrics  map[string]models.Metric
+		metrics  map[string]metric
 		wantCode int
 		wantBody string
 	}{
 		{
 			name:     "successful test: no metrics",
-			metrics:  map[string]models.Metric{},
+			metrics:  map[string]metric{},
 			wantCode: 200,
 			wantBody: "<html><head><title>all metrics</title></head>" +
 				"<body><h1>List of all metrics</h1><p></p></body></html>\n",
 		},
 		{
 			name: "successful test: one metric",
-			metrics: map[string]models.Metric{
+			metrics: map[string]metric{
 				"first": {
 					Name:  "first",
 					Type:  "gauge",
-					Value: float64(1),
+					Value: 1,
 				},
 			},
 			wantCode: 200,
@@ -278,16 +302,16 @@ func TestListAllMetrics(t *testing.T) {
 		},
 		{
 			name: "successful test: two metric",
-			metrics: map[string]models.Metric{
+			metrics: map[string]metric{
 				"first": {
 					Name:  "first",
 					Type:  "gauge",
-					Value: float64(1),
+					Value: 1,
 				},
 				"second": {
 					Name:  "second",
 					Type:  "counter",
-					Value: int64(2),
+					Value: 2,
 				},
 			},
 			wantCode: 200,
@@ -297,8 +321,14 @@ func TestListAllMetrics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			metrics := make(map[string]models.Metric)
+			for _, m := range tt.metrics {
+				nm, err := models.NewMetric(m.Name, m.Type, m.Value)
+				require.NoError(t, err)
+				metrics[m.Name] = nm
+			}
 			storage := &memstorage.MemStorage{
-				Metrics: tt.metrics,
+				Metrics: metrics,
 			}
 			server := httptest.NewServer(ListAllMetrics(storage))
 			response, err := server.Client().Get(server.URL + "/")
