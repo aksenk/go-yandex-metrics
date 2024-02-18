@@ -14,14 +14,8 @@ type PostgresStorage struct {
 	log *zap.SugaredLogger
 }
 
-func NewPostgresStorage(ctx context.Context, connectionString string, timeout time.Duration, log *zap.SugaredLogger) (*PostgresStorage, error) {
+func NewPostgresStorage(connectionString string, log *zap.SugaredLogger) (*PostgresStorage, error) {
 	db, err := sql.Open("pgx", connectionString)
-	if err != nil {
-		return nil, err
-	}
-	DBCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	err = db.PingContext(DBCtx)
 	if err != nil {
 		return nil, err
 	}

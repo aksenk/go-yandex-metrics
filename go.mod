@@ -3,6 +3,7 @@ module github.com/aksenk/go-yandex-metrics
 go 1.21.3
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/fatih/structs v1.1.0
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/jackc/pgx/v5 v5.5.3

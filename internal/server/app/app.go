@@ -82,9 +82,13 @@ func NewApp(config *config.Config) (*App, error) {
 		}, nil
 
 	case "postgres":
-		s, err := postgres.NewPostgresStorage(context.TODO(), config.Database.DSN, 10*time.Second, log)
+		s, err := postgres.NewPostgresStorage(config.Database.DSN, log)
 		if err != nil {
 			return nil, fmt.Errorf("can not init postgresStorage: %v", err)
+		}
+		err = s.Status(context.TODO())
+		if err != nil {
+			return nil, err
 		}
 		r := handlers.NewRouter(s)
 		return &App{

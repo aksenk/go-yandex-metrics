@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -38,6 +39,28 @@ func init() {
 	cfg.Level = atom
 	zl, _ := cfg.Build()
 	Log = zl.Sugar()
+}
+
+func NewLogger(level string) (*zap.SugaredLogger, error) {
+	atom := zap.NewAtomicLevel()
+
+	switch level {
+	case "debug":
+		atom.SetLevel(zap.DebugLevel)
+	case "info":
+		atom.SetLevel(zap.InfoLevel)
+	case "warn":
+		atom.SetLevel(zap.WarnLevel)
+	case "error":
+		atom.SetLevel(zap.ErrorLevel)
+	default:
+		return nil, fmt.Errorf("unknown log level: %s", level)
+	}
+
+	cfg := zap.NewProductionConfig()
+	cfg.Level = atom
+	zl, _ := cfg.Build()
+	return zl.Sugar(), nil
 }
 
 func Middleware(next http.Handler) http.Handler {
