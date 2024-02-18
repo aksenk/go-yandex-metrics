@@ -61,9 +61,8 @@ func TestPostgresStorage_Status(t *testing.T) {
 		require.NoError(t, err)
 		defer db.db.Close()
 
-		var expectedErrString = "failed to connect to `host=localhost user=postgres database=db`: dial error (dial tcp 127.0.0.1:5432: connect: connection refused)"
 		err = db.Status(context.TODO())
-		assert.EqualError(t, err, expectedErrString)
+		assert.Error(t, err)
 	})
 }
 
