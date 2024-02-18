@@ -81,7 +81,7 @@ func NewApp(config *config.Config) (*App, error) {
 		}, nil
 
 	case "postgres":
-		s, err := postgres.NewPostgresStorage(config.Database.DSN, log)
+		s, err := postgres.NewPostgresStorage(config.PostgresStorage.DSN, log)
 		if err != nil {
 			return nil, fmt.Errorf("can not init postgresStorage: %v", err)
 		}
