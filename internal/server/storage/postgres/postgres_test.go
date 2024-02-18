@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -25,17 +26,44 @@ func createMockedStorage() (*PostgresStorage, sqlmock.Sqlmock, error) {
 }
 
 func TestPostgresStorage_Status(t *testing.T) {
-	t.Run("check status function", func(t *testing.T) {
+	t.Run("mocked storage check status function", func(t *testing.T) {
 		db, mock, err := createMockedStorage()
 		require.NoError(t, err)
 
 		mock.ExpectPing()
 
-		db.Status(context.TODO())
+		err = db.Status(context.TODO())
+		assert.NoError(t, err)
 
 		if err = mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("there were unfulfilled expectations: %s", err)
 		}
+	})
+
+	t.Run("real storage check status function (invalid DSN)", func(t *testing.T) {
+		log, err := logger.NewLogger("debug")
+		require.NoError(t, err)
+
+		db, err := NewPostgresStorage("dummy", log)
+		require.NoError(t, err)
+		defer db.db.Close()
+
+		err = db.Status(context.TODO())
+		var expectedErrString = "cannot parse `dummy`: failed to parse as DSN (invalid dsn)"
+		assert.EqualError(t, err, expectedErrString)
+	})
+
+	t.Run("real storage check status function", func(t *testing.T) {
+		log, err := logger.NewLogger("debug")
+		require.NoError(t, err)
+
+		db, err := NewPostgresStorage("postgres://postgres:password@localhost:5432/db", log)
+		require.NoError(t, err)
+		defer db.db.Close()
+
+		var expectedErrString = "failed to connect to `host=localhost user=postgres database=db`: dial error (dial tcp 127.0.0.1:5432: connect: connection refused)"
+		err = db.Status(context.TODO())
+		assert.EqualError(t, err, expectedErrString)
 	})
 }
 

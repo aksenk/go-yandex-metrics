@@ -352,3 +352,22 @@ func TestListAllMetrics(t *testing.T) {
 		})
 	}
 }
+
+// TODO доделать тест
+//func TestPing(t *testing.T) {
+//	type args struct {
+//		storage storage.Storager
+//	}
+//	tests := []struct {
+//		name string
+//		args args
+//		want http.HandlerFunc
+//	}{
+//		// TODO: Add test cases.
+//	}
+//	for _, tt := range tests {
+//		t.Run(tt.name, func(t *testing.T) {
+//			assert.Equalf(t, tt.want, Ping(tt.args.storage), "Ping(%v)", tt.args.storage)
+//		})
+//	}
+//}
