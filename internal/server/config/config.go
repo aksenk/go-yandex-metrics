@@ -37,7 +37,7 @@ type databaseConfig struct {
 func GetConfig() (*Config, error) {
 	log := logger.Log
 	// TODO storage type должно иметь фиксированные значения
-	storage := flag.String("s", "postgres", "Storage type")
+	storage := flag.String("s", "file", "Storage type")
 	serverListenAddr := flag.String("a", "localhost:8080", "host:port for server listening")
 	metricsStoreInterval := flag.Int("i", 300, "Period in seconds between flushing metrics to the disk")
 	fileStorageFileName := flag.String("f", "/tmp/metrics-db.json", "Path to the file for storing metrics")
