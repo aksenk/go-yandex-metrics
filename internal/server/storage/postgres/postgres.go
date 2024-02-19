@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 	"time"
@@ -62,4 +65,22 @@ func (p *PostgresStorage) Status(ctx context.Context) error {
 func (p *PostgresStorage) Close() error {
 	p.Log.Debugf("Closing postgres connection")
 	return p.Conn.Close()
+}
+
+func RunMigrations(migrationsDir string, conn *sql.DB) (version uint, dirty bool, err error) {
+	driver, err := postgres.WithInstance(conn, &postgres.Config{})
+	if err != nil {
+		return 0, false, err
+	}
+	m, err := migrate.NewWithDatabaseInstance("file://"+migrationsDir, "postgres", driver)
+	if err != nil {
+		return 0, false, err
+	}
+	if err = m.Up(); err != nil {
+		if err == migrate.ErrNoChange {
+			return m.Version()
+		}
+		return 0, false, err
+	}
+	return m.Version()
 }

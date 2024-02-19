@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/server/config"
@@ -86,10 +87,19 @@ func NewApp(config *config.Config) (*App, error) {
 			return nil, fmt.Errorf("can not init postgresStorage: %v", err)
 		}
 		// TODO вернуть. сейчас из-за этого не работают автотесты
-		//err = s.Status(context.TODO())
-		//if err != nil {
-		//	return nil, err
-		//}
+		err = s.Status(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+		log.Infof("Starting database migrations")
+		version, dirty, err := postgres.RunMigrations("./migrations/postgres", s.Conn)
+		if err != nil {
+			return nil, fmt.Errorf("can not run migrations: %v", err)
+		}
+		if dirty {
+			return nil, fmt.Errorf("database version %v have dirty status", version)
+		}
+		log.Infof("Database is up to date. Version: %v", version)
 		r := handlers.NewRouter(s)
 		return &App{
 			storage: s,
