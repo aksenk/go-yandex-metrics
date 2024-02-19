@@ -10,8 +10,8 @@ import (
 )
 
 type PostgresStorage struct {
-	db  *sql.DB
-	log *zap.SugaredLogger
+	Conn *sql.DB
+	Log  *zap.SugaredLogger
 }
 
 func NewPostgresStorage(connectionString string, log *zap.SugaredLogger) (*PostgresStorage, error) {
@@ -20,8 +20,8 @@ func NewPostgresStorage(connectionString string, log *zap.SugaredLogger) (*Postg
 		return nil, err
 	}
 	return &PostgresStorage{
-		db:  db,
-		log: log,
+		Conn: db,
+		Log:  log,
 	}, nil
 }
 
@@ -46,20 +46,20 @@ func (p *PostgresStorage) FlushMetrics() error {
 }
 
 func (p *PostgresStorage) Status(ctx context.Context) error {
-	p.log.Debugf("Checking postgres connection")
+	p.Log.Debugf("Checking postgres connection")
 	timeout := 3 * time.Second
 	DBCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	err := p.db.PingContext(DBCtx)
+	err := p.Conn.PingContext(DBCtx)
 	if err != nil {
-		p.log.Errorf("Postgres connection is not OK: %v", err)
+		p.Log.Errorf("Postgres connection is not OK: %v", err)
 		return err
 	}
-	p.log.Debugf("Postgres connection is OK")
+	p.Log.Debugf("Postgres connection is OK")
 	return nil
 }
 
 func (p *PostgresStorage) Close() error {
-	p.log.Debugf("Closing postgres connection")
-	return p.db.Close()
+	p.Log.Debugf("Closing postgres connection")
+	return p.Conn.Close()
 }

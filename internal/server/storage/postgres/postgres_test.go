@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func createMockedStorage() (*PostgresStorage, sqlmock.Sqlmock, error) {
+func CreateMockedStorage() (*PostgresStorage, sqlmock.Sqlmock, error) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		return nil, nil, err
@@ -19,15 +19,15 @@ func createMockedStorage() (*PostgresStorage, sqlmock.Sqlmock, error) {
 		return nil, nil, err
 	}
 	mockedStorage := PostgresStorage{
-		db:  db,
-		log: logger,
+		Conn: db,
+		Log:  logger,
 	}
 	return &mockedStorage, mock, nil
 }
 
 func TestPostgresStorage_Status(t *testing.T) {
 	t.Run("mocked storage check status function", func(t *testing.T) {
-		db, mock, err := createMockedStorage()
+		db, mock, err := CreateMockedStorage()
 		require.NoError(t, err)
 
 		mock.ExpectPing()
@@ -46,7 +46,7 @@ func TestPostgresStorage_Status(t *testing.T) {
 
 		db, err := NewPostgresStorage("dummy", log)
 		require.NoError(t, err)
-		defer db.db.Close()
+		defer db.Conn.Close()
 
 		err = db.Status(context.TODO())
 		var expectedErrString = "cannot parse `dummy`: failed to parse as DSN (invalid dsn)"
@@ -59,7 +59,7 @@ func TestPostgresStorage_Status(t *testing.T) {
 
 		db, err := NewPostgresStorage("postgres://postgres:password@localhost:5432/db", log)
 		require.NoError(t, err)
-		defer db.db.Close()
+		defer db.Conn.Close()
 
 		err = db.Status(context.TODO())
 		assert.Error(t, err)
@@ -81,7 +81,7 @@ func TestNewPostgresStorage(t *testing.T) {
 
 func TestPostgresStorage_Close(t *testing.T) {
 	t.Run("test postgres storage close function", func(t *testing.T) {
-		db, mock, err := createMockedStorage()
+		db, mock, err := CreateMockedStorage()
 		require.NoError(t, err)
 
 		mock.ExpectClose()

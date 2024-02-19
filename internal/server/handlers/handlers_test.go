@@ -2,13 +2,18 @@ package handlers
 
 import (
 	"context"
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage/filestorage"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 )
 
@@ -353,21 +358,50 @@ func TestListAllMetrics(t *testing.T) {
 	}
 }
 
-// TODO доделать тест
-//func TestPing(t *testing.T) {
-//	type args struct {
-//		storage storage.Storager
-//	}
-//	tests := []struct {
-//		name string
-//		args args
-//		want http.HandlerFunc
-//	}{
-//		// TODO: Add test cases.
-//	}
-//	for _, tt := range tests {
-//		t.Run(tt.name, func(t *testing.T) {
-//			assert.Equalf(t, tt.want, Ping(tt.args.storage), "Ping(%v)", tt.args.storage)
-//		})
-//	}
-//}
+func TestPing(t *testing.T) {
+	t.Run("with file storage", func(t *testing.T) {
+		fileName := "test_db.json"
+		storage, err := filestorage.NewFileStorage(fileName, false)
+		require.NoError(t, err)
+		defer os.RemoveAll(fileName)
+
+		server := httptest.NewServer(Ping(storage))
+		response, err := server.Client().Get(server.URL + "/ping")
+		require.NoError(t, err)
+		assert.Equal(t, 200, response.StatusCode)
+	})
+
+	t.Run("with working postgres storage", func(t *testing.T) {
+		db, _, err := sqlmock.New()
+		require.NoError(t, err)
+
+		log, err := logger.NewLogger("debug")
+		require.NoError(t, err)
+
+		storage := &postgres.PostgresStorage{
+			Conn: db,
+			Log:  log,
+		}
+
+		server := httptest.NewServer(Ping(storage))
+		response, err := server.Client().Get(server.URL + "/ping")
+		require.NoError(t, err)
+
+		assert.Equal(t, 200, response.StatusCode)
+	})
+
+	t.Run("with unavailable postgres storage", func(t *testing.T) {
+		log, err := logger.NewLogger("debug")
+		require.NoError(t, err)
+
+		storage, err := postgres.NewPostgresStorage("postgres://postgres:password@localhost:5431/db", log)
+		require.NoError(t, err)
+
+		server := httptest.NewServer(Ping(storage))
+		response, err := server.Client().Get(server.URL + "/ping")
+		require.NoError(t, err)
+
+		// сервер не сможет достучаться до postgres и должен отдать статус 500
+		assert.Equal(t, 500, response.StatusCode)
+	})
+}
