@@ -368,6 +368,8 @@ func TestPing(t *testing.T) {
 		server := httptest.NewServer(Ping(storage))
 		response, err := server.Client().Get(server.URL + "/ping")
 		require.NoError(t, err)
+		defer response.Body.Close()
+
 		assert.Equal(t, 200, response.StatusCode)
 	})
 
@@ -386,6 +388,7 @@ func TestPing(t *testing.T) {
 		server := httptest.NewServer(Ping(storage))
 		response, err := server.Client().Get(server.URL + "/ping")
 		require.NoError(t, err)
+		defer response.Body.Close()
 
 		assert.Equal(t, 200, response.StatusCode)
 	})
@@ -400,6 +403,7 @@ func TestPing(t *testing.T) {
 		server := httptest.NewServer(Ping(storage))
 		response, err := server.Client().Get(server.URL + "/ping")
 		require.NoError(t, err)
+		defer response.Body.Close()
 
 		// сервер не сможет достучаться до postgres и должен отдать статус 500
 		assert.Equal(t, 500, response.StatusCode)
