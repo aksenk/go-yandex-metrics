@@ -37,10 +37,10 @@ type databaseConfig struct {
 func GetConfig() (*Config, error) {
 	log := logger.Log
 	serverListenAddr := flag.String("a", "localhost:8080", "host:port for server listening")
-	metricsStoreInterval := flag.Int("i", 300, "Period in seconds between flushing metrics to the disk")
-	fileStorageFileName := flag.String("f", "/tmp/metrics-db.json", "Path to the file for storing metrics")
-	fileStorageStartupRestore := flag.Bool("r", true, "Restoring metrics from the file at startup")
-	databaseDSN := flag.String("d", "", "PostgresStorage DSN string")
+	metricsStoreInterval := flag.Int("i", 300, "Period in seconds between flushing metrics to the disk (file storage)")
+	fileStorageFileName := flag.String("f", "", "Path to the file for storing metrics (file storage)")
+	fileStorageStartupRestore := flag.Bool("r", false, "Restoring metrics from the file at startup (file storage)")
+	databaseDSN := flag.String("d", "", "Postgres connection DSN string (database storage)")
 
 	flag.Parse()
 
@@ -75,6 +75,10 @@ func GetConfig() (*Config, error) {
 	storage := "file"
 	if databaseDSN != nil && *databaseDSN != "" {
 		storage = "postgres"
+	} else if fileStorageFileName != nil && *fileStorageFileName != "" {
+		storage = "file"
+	} else {
+		storage = "memory"
 	}
 	return &Config{
 		Storage: storage,

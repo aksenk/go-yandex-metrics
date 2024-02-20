@@ -8,6 +8,7 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/server/handlers"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/filestorage"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/postgres"
 	"github.com/go-chi/chi/v5"
 	"net/http"
@@ -22,15 +23,18 @@ type App struct {
 
 func (a *App) Start() error {
 	log := logger.Log
-	if a.config.Metrics.StartupRestore {
-		err := a.storage.StartupRestore()
-		if err != nil {
-			return err
-		}
-	}
 
-	if a.config.Metrics.StoreInterval > 0 {
-		go a.BackgroundFlusher()
+	if a.config.Storage == "file" {
+		if a.config.Metrics.StartupRestore {
+			err := a.storage.StartupRestore()
+			if err != nil {
+				return err
+			}
+		}
+
+		if a.config.Metrics.StoreInterval > 0 {
+			go a.BackgroundFlusher()
+		}
 	}
 
 	log.Infof("Starting web server on %v", a.config.Server.ListenAddr)
@@ -43,7 +47,6 @@ func (a *App) Start() error {
 func (a *App) Stop() error {
 	log := logger.Log
 	log.Infof("Starting the shutdown of the application")
-	log.Infof("Flushing metrics")
 	err := a.storage.FlushMetrics()
 	if err != nil {
 		return err
@@ -68,6 +71,15 @@ func NewApp(config *config.Config) (*App, error) {
 	}
 
 	switch config.Storage {
+
+	case "memory":
+		s := memstorage.NewMemStorage()
+		r := handlers.NewRouter(s)
+		return &App{
+			storage: s,
+			router:  &r,
+			config:  config,
+		}, nil
 
 	case "file":
 		s, err := filestorage.NewFileStorage(config.FileStorage.FileName, synchronousFlush)

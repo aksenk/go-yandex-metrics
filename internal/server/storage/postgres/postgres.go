@@ -66,13 +66,19 @@ func (p *PostgresStorage) GetMetric(metricName string) (*models.Metric, error) {
 func (p *PostgresStorage) GetAllMetrics() (map[string]models.Metric, error) {
 	allMetrics := make(map[string]models.Metric)
 	var metric models.Metric
+
 	rows, err := p.Conn.Query("SELECT name, type, value, delta FROM server.metrics")
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	for rows.Next() {
 		rows.Scan(&metric.ID, &metric.MType, &metric.Value, &metric.Delta)
 		allMetrics[metric.ID] = metric
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
 	}
 	return allMetrics, nil
 }
