@@ -346,7 +346,8 @@ func TestMemStorage_GetAllMetrics(t *testing.T) {
 				Metrics: existingMetrics,
 				mu:      sync.Mutex{},
 			}
-			got := storage.GetAllMetrics()
+			got, err := storage.GetAllMetrics()
+			require.NoError(t, err)
 			for _, w := range tt.want {
 				if _, ok := got[w]; !ok {
 					t.Errorf("GetAllMetrics() = metric with name '%v' does not contains in result metrics: %v", w, got)

@@ -29,8 +29,8 @@ func (m *MemStorageDummy) GetMetric(name string) (*models.Metric, error) {
 	return &models.Metric{}, nil
 }
 
-func (m *MemStorageDummy) GetAllMetrics() map[string]models.Metric {
-	return make(map[string]models.Metric)
+func (m *MemStorageDummy) GetAllMetrics() (map[string]models.Metric, error) {
+	return make(map[string]models.Metric), nil
 }
 
 func (m *MemStorageDummy) FlushMetrics() error {

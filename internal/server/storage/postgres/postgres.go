@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -29,15 +30,51 @@ func NewPostgresStorage(connectionString string, log *zap.SugaredLogger) (*Postg
 }
 
 func (p *PostgresStorage) SaveMetric(metric models.Metric) error {
+	_, err := p.GetMetric(metric.ID)
+	if err == storage.ErrMetricNotExist {
+		_, err = p.Conn.Exec("INSERT INTO server.metrics (name, type, value, delta) VALUES ($1, $2, $3, $4)",
+			metric.ID, metric.MType, metric.Value, metric.Delta)
+		if err != nil {
+			return err
+		}
+	}
+	if err != nil {
+		return err
+	}
+	_, err = p.Conn.Exec("UPDATE server.metrics SET value=$1, delta=$2 WHERE name=$3",
+		metric.Value, metric.Delta, metric.ID)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
-func (p *PostgresStorage) GetMetric(name string) (*models.Metric, error) {
-	return nil, nil
+func (p *PostgresStorage) GetMetric(metricName string) (*models.Metric, error) {
+	var metric models.Metric
+	err := p.Conn.QueryRow("SELECT name, type, value, delta FROM server.metrics WHERE name=$1",
+		metricName).
+		Scan(&metric.ID, &metric.MType, &metric.Value, &metric.Delta)
+	if err == sql.ErrNoRows {
+		return nil, storage.ErrMetricNotExist
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &metric, nil
 }
 
-func (p *PostgresStorage) GetAllMetrics() map[string]models.Metric {
-	return nil
+func (p *PostgresStorage) GetAllMetrics() (map[string]models.Metric, error) {
+	allMetrics := make(map[string]models.Metric)
+	var metric models.Metric
+	rows, err := p.Conn.Query("SELECT name, type, value, delta FROM server.metrics")
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		rows.Scan(&metric.ID, &metric.MType, &metric.Value, &metric.Delta)
+		allMetrics[metric.ID] = metric
+	}
+	return allMetrics, nil
 }
 
 func (p *PostgresStorage) StartupRestore() error {

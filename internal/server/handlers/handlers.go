@@ -59,7 +59,11 @@ func Ping(storage storage.Storager) http.HandlerFunc {
 func ListAllMetrics(storage storage.Storager) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		var list []string
-		allMetrics := storage.GetAllMetrics()
+		allMetrics, err := storage.GetAllMetrics()
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("Error receiving metrics: %v", err), http.StatusInternalServerError)
+			return
+		}
 		for _, v := range allMetrics {
 			if v.MType == "gauge" {
 				list = append(list, fmt.Sprintf("%v=%v", v.ID, *v.Value))
