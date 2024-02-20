@@ -11,6 +11,7 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/postgres"
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 	"net/http"
 	"time"
 )
@@ -19,120 +20,125 @@ type App struct {
 	storage storage.Storager
 	router  *chi.Router
 	config  *config.Config
+	server  *http.Server
+	logger  *zap.SugaredLogger
 }
 
-func (a *App) Start() error {
-	log := logger.Log
-
+func (a *App) Start(ctx context.Context) error {
 	if a.config.Storage == "file" {
 		if a.config.Metrics.StartupRestore {
-			err := a.storage.StartupRestore()
+			err := a.storage.StartupRestore(ctx)
 			if err != nil {
 				return err
 			}
 		}
-
 		if a.config.Metrics.StoreInterval > 0 {
 			go a.BackgroundFlusher()
 		}
 	}
 
-	log.Infof("Starting web server on %v", a.config.Server.ListenAddr)
-	if err := http.ListenAndServe(a.config.Server.ListenAddr, *a.router); err != nil {
+	a.logger.Infof("Starting web server on %v", a.config.Server.ListenAddr)
+	if err := a.server.ListenAndServe(); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (a *App) Stop() error {
-	log := logger.Log
-	log.Infof("Starting the shutdown of the application")
-	err := a.storage.FlushMetrics()
+	a.logger.Infof("Starting the shutdown of the application")
+	a.logger.Infof("Closing web server")
+	err := a.server.Shutdown(context.TODO())
 	if err != nil {
 		return err
 	}
-	log.Infof("Closing storage")
+	if a.config.Storage == "file" {
+		err = a.storage.FlushMetrics()
+		if err != nil {
+			return err
+		}
+	}
+	a.logger.Infof("Closing storage")
 	err = a.storage.Close()
 	if err != nil {
 		return err
 	}
-	log.Infof("Shutdown completed")
+
+	a.logger.Infof("Shutdown completed")
 	return nil
 }
 
 func NewApp(config *config.Config) (*App, error) {
-	log := logger.Log
+	logger, err := logger.NewLogger(config.LogLevel)
+	if err != nil {
+		return nil, err
+	}
+	var router chi.Router
+	var storage storage.Storager
 
-	log.Infof("Starting %v storage initialization", config.Storage)
+	logger.Infof("Starting %v storage initialization", config.Storage)
 	synchronousFlush := false
 	if config.Metrics.StoreInterval == 0 {
-		log.Infof("Synchronous flushing is enabled")
+		logger.Infof("Synchronous flushing is enabled")
 		synchronousFlush = true
 	}
 
 	switch config.Storage {
 
 	case "memory":
-		s := memstorage.NewMemStorage()
-		r := handlers.NewRouter(s)
-		return &App{
-			storage: s,
-			router:  &r,
-			config:  config,
-		}, nil
+		storage = memstorage.NewMemStorage(logger)
 
 	case "file":
-		s, err := filestorage.NewFileStorage(config.FileStorage.FileName, synchronousFlush)
+		storage, err = filestorage.NewFileStorage(config.FileStorage.FileName, synchronousFlush, logger)
 		if err != nil {
 			return nil, fmt.Errorf("can not init fileStorage: %v", err)
 		}
-		r := handlers.NewRouter(s)
-		return &App{
-			storage: s,
-			router:  &r,
-			config:  config,
-		}, nil
 
 	case "postgres":
-		s, err := postgres.NewPostgresStorage(config.PostgresStorage.DSN, log)
+		pgs, err := postgres.NewPostgresStorage(config.PostgresStorage.DSN, logger)
 		if err != nil {
 			return nil, fmt.Errorf("can not init postgresStorage: %v", err)
 		}
-		// TODO вернуть. сейчас из-за этого не работают автотесты
-		err = s.Status(context.TODO())
+		err = pgs.Status(context.TODO())
 		if err != nil {
 			return nil, err
 		}
-		log.Infof("Starting database migrations")
-		version, dirty, err := postgres.RunMigrations("./migrations/postgres", s.Conn)
+		logger.Infof("Starting database migrations")
+		version, dirty, err := postgres.RunMigrations("./migrations/postgres", pgs.Conn)
 		if err != nil {
 			return nil, fmt.Errorf("can not run migrations: %v", err)
 		}
 		if dirty {
 			return nil, fmt.Errorf("database version %v have dirty status", version)
 		}
-		log.Infof("Database is up to date. Version: %v", version)
-		r := handlers.NewRouter(s)
-		return &App{
-			storage: s,
-			router:  &r,
-			config:  config,
-		}, nil
+		storage = pgs
+		logger.Infof("Database is up to date. Version: %v", version)
 
 	default:
 		return nil, fmt.Errorf("unknown storage type: %v", config.Storage)
 	}
+
+	router = handlers.NewRouter(storage)
+	srv := &http.Server{
+		Addr:    config.Server.ListenAddr,
+		Handler: router,
+	}
+	return &App{
+		storage: storage,
+		router:  &router,
+		config:  config,
+		server:  srv,
+		logger:  logger,
+	}, nil
 }
 
 func (a *App) BackgroundFlusher() {
-	log := logger.Log
-	log.Infof("Starting background metric flushing every %v seconds", a.config.Metrics.StoreInterval)
+	a.logger.Infof("Starting background metric flushing every %v seconds", a.config.Metrics.StoreInterval)
 	flushTicker := time.NewTicker(time.Duration(a.config.Metrics.StoreInterval) * time.Second)
 	for {
 		<-flushTicker.C
 		err := a.storage.FlushMetrics()
 		if err != nil {
-			log.Errorf("FileStorage.BackgroundFlusher error saving metrics to the disk: %v", err)
+			a.logger.Errorf("FileStorage.BackgroundFlusher error saving metrics to the disk: %v", err)
 			continue
 		}
 	}

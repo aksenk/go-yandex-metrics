@@ -21,15 +21,15 @@ type MemStorageDummy struct {
 	Dummy string
 }
 
-func (m *MemStorageDummy) SaveMetric(metric models.Metric) error {
+func (m *MemStorageDummy) SaveMetric(ctx context.Context, metric models.Metric) error {
 	return nil
 }
 
-func (m *MemStorageDummy) GetMetric(name string) (*models.Metric, error) {
+func (m *MemStorageDummy) GetMetric(ctx context.Context, name string) (*models.Metric, error) {
 	return &models.Metric{}, nil
 }
 
-func (m *MemStorageDummy) GetAllMetrics() (map[string]models.Metric, error) {
+func (m *MemStorageDummy) GetAllMetrics(ctx context.Context) (map[string]models.Metric, error) {
 	return make(map[string]models.Metric), nil
 }
 
@@ -37,7 +37,7 @@ func (m *MemStorageDummy) FlushMetrics() error {
 	return nil
 }
 
-func (m *MemStorageDummy) StartupRestore() error {
+func (m *MemStorageDummy) StartupRestore(ctx context.Context) error {
 	return nil
 }
 
@@ -359,9 +359,11 @@ func TestListAllMetrics(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
+	logger, err := logger.NewLogger("info")
+	require.NoError(t, err)
 	t.Run("with file storage", func(t *testing.T) {
 		fileName := "test_db.json"
-		storage, err := filestorage.NewFileStorage(fileName, false)
+		storage, err := filestorage.NewFileStorage(fileName, false, logger)
 		require.NoError(t, err)
 		defer os.RemoveAll(fileName)
 
@@ -377,12 +379,11 @@ func TestPing(t *testing.T) {
 		db, _, err := sqlmock.New()
 		require.NoError(t, err)
 
-		log, err := logger.NewLogger("debug")
 		require.NoError(t, err)
 
 		storage := &postgres.PostgresStorage{
-			Conn: db,
-			Log:  log,
+			Conn:   db,
+			Logger: logger,
 		}
 
 		server := httptest.NewServer(Ping(storage))
@@ -394,10 +395,9 @@ func TestPing(t *testing.T) {
 	})
 
 	t.Run("with unavailable postgres storage", func(t *testing.T) {
-		log, err := logger.NewLogger("debug")
 		require.NoError(t, err)
 
-		storage, err := postgres.NewPostgresStorage("postgres://postgres:password@localhost:5431/db", log)
+		storage, err := postgres.NewPostgresStorage("postgres://postgres:password@localhost:5431/db", logger)
 		require.NoError(t, err)
 
 		server := httptest.NewServer(Ping(storage))

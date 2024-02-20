@@ -1,10 +1,11 @@
 package memstorage
 
 import (
+	"context"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"reflect"
 	"sync"
 	"testing"
 )
@@ -81,7 +82,7 @@ func TestMemStorage_GetMetric(t *testing.T) {
 				Metrics: existingMetrics,
 				mu:      sync.Mutex{},
 			}
-			m, err := storage.GetMetric(tt.getMetricName)
+			m, err := storage.GetMetric(context.TODO(), tt.getMetricName)
 			if !tt.wantErr {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want.Name, m.ID)
@@ -272,7 +273,7 @@ func TestMemStorage_SaveMetric(t *testing.T) {
 			if !tt.wantErr {
 				require.NoError(t, err)
 			}
-			err = s.SaveMetric(m)
+			err = s.SaveMetric(context.TODO(), m)
 			require.NoError(t, err)
 			if !tt.wantErr {
 				assert.Equal(t, tt.want.Name, m.ID)
@@ -297,10 +298,13 @@ func TestNewMemStorage(t *testing.T) {
 			},
 		},
 	}
+	logger, err := logger.NewLogger("info")
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewMemStorage(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewMemStorage() = %v, want %v", got, tt.want)
+			var got any = NewMemStorage(logger)
+			if _, ok := got.(*MemStorage); !ok {
+				t.Fatalf("Resulting object have incorrect type (not equal *MemStorage struct)")
 			}
 		})
 	}
@@ -346,7 +350,7 @@ func TestMemStorage_GetAllMetrics(t *testing.T) {
 				Metrics: existingMetrics,
 				mu:      sync.Mutex{},
 			}
-			got, err := storage.GetAllMetrics()
+			got, err := storage.GetAllMetrics(context.TODO())
 			require.NoError(t, err)
 			for _, w := range tt.want {
 				if _, ok := got[w]; !ok {

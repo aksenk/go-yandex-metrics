@@ -19,8 +19,8 @@ func CreateMockedStorage() (*PostgresStorage, sqlmock.Sqlmock, error) {
 		return nil, nil, err
 	}
 	mockedStorage := PostgresStorage{
-		Conn: db,
-		Log:  logger,
+		Conn:   db,
+		Logger: logger,
 	}
 	return &mockedStorage, mock, nil
 }
@@ -67,11 +67,12 @@ func TestPostgresStorage_Status(t *testing.T) {
 }
 
 func TestNewPostgresStorage(t *testing.T) {
+	logger, err := logger.NewLogger("info")
+	require.NoError(t, err)
 	t.Run("test new postgres storage", func(t *testing.T) {
-		log := logger.Log
 		var got any
 		var err error
-		got, err = NewPostgresStorage("dummy connection string", log)
+		got, err = NewPostgresStorage("dummy connection string", logger)
 		require.NoError(t, err)
 		if _, ok := got.(*PostgresStorage); !ok {
 			t.Fatalf("Resulting object have incorrect type (not equal *PostgresStorage struct)")

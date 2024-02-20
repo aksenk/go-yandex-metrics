@@ -14,8 +14,8 @@ import (
 )
 
 type PostgresStorage struct {
-	Conn *sql.DB
-	Log  *zap.SugaredLogger
+	Conn   *sql.DB
+	Logger *zap.SugaredLogger
 }
 
 func NewPostgresStorage(connectionString string, log *zap.SugaredLogger) (*PostgresStorage, error) {
@@ -24,15 +24,15 @@ func NewPostgresStorage(connectionString string, log *zap.SugaredLogger) (*Postg
 		return nil, err
 	}
 	return &PostgresStorage{
-		Conn: db,
-		Log:  log,
+		Conn:   db,
+		Logger: log,
 	}, nil
 }
 
-func (p *PostgresStorage) SaveMetric(metric models.Metric) error {
-	_, err := p.GetMetric(metric.ID)
+func (p *PostgresStorage) SaveMetric(ctx context.Context, metric models.Metric) error {
+	_, err := p.GetMetric(ctx, metric.ID)
 	if err == storage.ErrMetricNotExist {
-		_, err = p.Conn.Exec("INSERT INTO server.metrics (name, type, value, delta) VALUES ($1, $2, $3, $4)",
+		_, err = p.Conn.ExecContext(ctx, "INSERT INTO server.metrics (name, type, value, delta) VALUES ($1, $2, $3, $4)",
 			metric.ID, metric.MType, metric.Value, metric.Delta)
 		if err != nil {
 			return err
@@ -41,7 +41,7 @@ func (p *PostgresStorage) SaveMetric(metric models.Metric) error {
 	if err != nil {
 		return err
 	}
-	_, err = p.Conn.Exec("UPDATE server.metrics SET value=$1, delta=$2 WHERE name=$3",
+	_, err = p.Conn.ExecContext(ctx, "UPDATE server.metrics SET value=$1, delta=$2 WHERE name=$3",
 		metric.Value, metric.Delta, metric.ID)
 	if err != nil {
 		return err
@@ -49,9 +49,9 @@ func (p *PostgresStorage) SaveMetric(metric models.Metric) error {
 	return nil
 }
 
-func (p *PostgresStorage) GetMetric(metricName string) (*models.Metric, error) {
+func (p *PostgresStorage) GetMetric(ctx context.Context, metricName string) (*models.Metric, error) {
 	var metric models.Metric
-	err := p.Conn.QueryRow("SELECT name, type, value, delta FROM server.metrics WHERE name=$1",
+	err := p.Conn.QueryRowContext(ctx, "SELECT name, type, value, delta FROM server.metrics WHERE name=$1",
 		metricName).
 		Scan(&metric.ID, &metric.MType, &metric.Value, &metric.Delta)
 	if err == sql.ErrNoRows {
@@ -63,11 +63,11 @@ func (p *PostgresStorage) GetMetric(metricName string) (*models.Metric, error) {
 	return &metric, nil
 }
 
-func (p *PostgresStorage) GetAllMetrics() (map[string]models.Metric, error) {
+func (p *PostgresStorage) GetAllMetrics(ctx context.Context) (map[string]models.Metric, error) {
 	allMetrics := make(map[string]models.Metric)
 	var metric models.Metric
 
-	rows, err := p.Conn.Query("SELECT name, type, value, delta FROM server.metrics")
+	rows, err := p.Conn.QueryContext(ctx, "SELECT name, type, value, delta FROM server.metrics")
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (p *PostgresStorage) GetAllMetrics() (map[string]models.Metric, error) {
 	return allMetrics, nil
 }
 
-func (p *PostgresStorage) StartupRestore() error {
+func (p *PostgresStorage) StartupRestore(ctx context.Context) error {
 	return nil
 }
 
@@ -92,21 +92,21 @@ func (p *PostgresStorage) FlushMetrics() error {
 }
 
 func (p *PostgresStorage) Status(ctx context.Context) error {
-	p.Log.Debugf("Checking postgres connection")
+	p.Logger.Debugf("Checking postgres connection")
 	timeout := 3 * time.Second
 	DBCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	err := p.Conn.PingContext(DBCtx)
 	if err != nil {
-		p.Log.Errorf("Postgres connection is not OK: %v", err)
+		p.Logger.Errorf("Postgres connection is not OK: %v", err)
 		return err
 	}
-	p.Log.Debugf("Postgres connection is OK")
+	p.Logger.Debugf("Postgres connection is OK")
 	return nil
 }
 
 func (p *PostgresStorage) Close() error {
-	p.Log.Debugf("Closing postgres connection")
+	p.Logger.Debugf("Closing postgres connection")
 	return p.Conn.Close()
 }
 

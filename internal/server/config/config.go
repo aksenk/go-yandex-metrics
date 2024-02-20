@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	Storage         string
+	LogLevel        string
 	Server          serverConfig
 	Metrics         metricsConfig
 	FileStorage     fileStorageConfig
@@ -35,7 +36,11 @@ type databaseConfig struct {
 }
 
 func GetConfig() (*Config, error) {
-	log := logger.Log
+	log, err := logger.NewLogger("info")
+	if err != nil {
+		return nil, err
+	}
+	logLevel := flag.String("l", "info", "Logger level")
 	serverListenAddr := flag.String("a", "localhost:8080", "host:port for server listening")
 	metricsStoreInterval := flag.Int("i", 300, "Period in seconds between flushing metrics to the disk (file storage)")
 	fileStorageFileName := flag.String("f", "", "Path to the file for storing metrics (file storage)")
@@ -44,6 +49,9 @@ func GetConfig() (*Config, error) {
 
 	flag.Parse()
 
+	if e := os.Getenv("LOG_LEVEL"); e != "" {
+		logLevel = &e
+	}
 	if e := os.Getenv("DATABASE_DSN"); e != "" {
 		databaseDSN = &e
 	}
@@ -81,7 +89,8 @@ func GetConfig() (*Config, error) {
 		storage = "memory"
 	}
 	return &Config{
-		Storage: storage,
+		Storage:  storage,
+		LogLevel: *logLevel,
 		Server: serverConfig{
 			ListenAddr: *serverListenAddr,
 		},

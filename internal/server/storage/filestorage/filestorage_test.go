@@ -2,7 +2,9 @@ package filestorage
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,12 +48,14 @@ func TestNewFileStorage(t *testing.T) {
 			wantErr: true,
 		},
 	}
+	logger, err := logger.NewLogger("info")
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got any
 			var err error
 			defer os.RemoveAll(tt.args.filename)
-			got, err = NewFileStorage(tt.args.filename, tt.args.synchronousFlush)
+			got, err = NewFileStorage(tt.args.filename, tt.args.synchronousFlush, logger)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -286,15 +290,17 @@ func TestFileStorageSaveMetric(t *testing.T) {
 			wantErr: true,
 		},
 	}
+	logger, err := logger.NewLogger("info")
+	require.NoError(t, err)
 	for _, tt := range tests {
-		s, err := NewFileStorage(tt.args.filename, tt.args.synchronousFlush)
+		s, err := NewFileStorage(tt.args.filename, tt.args.synchronousFlush, logger)
 		require.NoError(t, err)
 		t.Run(tt.name, func(t *testing.T) {
 			m, err := models.NewMetric(tt.metric.Name, tt.metric.Type, tt.metric.Value)
 			if !tt.wantErr {
 				require.NoError(t, err)
 			}
-			err = s.SaveMetric(m)
+			err = s.SaveMetric(context.TODO(), m)
 			require.NoError(t, err)
 			if !tt.wantErr {
 				assert.Equal(t, tt.want.Name, m.ID)
@@ -345,12 +351,14 @@ func TestFileStorage_FlushMetrics(t *testing.T) {
 			wantErr: false,
 		},
 	}
+	logger, err := logger.NewLogger("info")
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer os.RemoveAll(tt.args.filename)
 			var err error
 
-			s, err := NewFileStorage(tt.args.filename, tt.args.synchronousFlush)
+			s, err := NewFileStorage(tt.args.filename, tt.args.synchronousFlush, logger)
 			require.NoError(t, err)
 
 			for _, m := range tt.metrics {
@@ -444,6 +452,8 @@ func TestFileStorage_StartupRestore(t *testing.T) {
 			wantErr: true,
 		},
 	}
+	logger, err := logger.NewLogger("info")
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := os.RemoveAll(tt.args.filename)
@@ -457,9 +467,9 @@ func TestFileStorage_StartupRestore(t *testing.T) {
 			err = f.Close()
 			require.NoError(t, err)
 
-			s, err := NewFileStorage(tt.args.filename, tt.args.synchronousFlush)
+			s, err := NewFileStorage(tt.args.filename, tt.args.synchronousFlush, logger)
 			require.NoError(t, err)
-			err = s.StartupRestore()
+			err = s.StartupRestore(context.TODO())
 			require.NoError(t, err)
 
 			err = os.RemoveAll(tt.args.filename)

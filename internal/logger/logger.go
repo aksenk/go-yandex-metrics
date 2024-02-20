@@ -19,6 +19,15 @@ type loggingResponseWriter struct {
 	responseData *responseData
 }
 
+func init() {
+	atom := zap.NewAtomicLevel()
+	atom.SetLevel(zap.InfoLevel)
+	cfg := zap.NewProductionConfig()
+	cfg.Level = atom
+	zl, _ := cfg.Build()
+	Log = zl.Sugar()
+}
+
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(b)
 	r.responseData.size = size
@@ -28,17 +37,6 @@ func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.ResponseWriter.WriteHeader(statusCode)
 	r.responseData.statusCode = statusCode
-}
-
-func init() {
-	atom := zap.NewAtomicLevel()
-	//atom.SetLevel(zap.InfoLevel)
-	// TODO убрать
-	atom.SetLevel(zap.DebugLevel)
-	cfg := zap.NewProductionConfig()
-	cfg.Level = atom
-	zl, _ := cfg.Build()
-	Log = zl.Sugar()
 }
 
 func NewLogger(level string) (*zap.SugaredLogger, error) {
@@ -65,6 +63,11 @@ func NewLogger(level string) (*zap.SugaredLogger, error) {
 
 func Middleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
+		logger, err := NewLogger("info")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		start := time.Now()
 		uri := r.RequestURI
 		method := r.Method
@@ -74,8 +77,8 @@ func Middleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(&lrw, r)
 		duration := time.Since(start)
-		Log.Infof("Request URI=%v method=%v duration=%v", uri, method, duration)
-		Log.Infof("Response statusCode=%v size=%v", lrw.responseData.statusCode, lrw.responseData.size)
+		logger.Infof("Request URI=%v method=%v duration=%v", uri, method, duration)
+		logger.Infof("Response statusCode=%v size=%v", lrw.responseData.statusCode, lrw.responseData.size)
 	}
 	return http.HandlerFunc(fn)
 }

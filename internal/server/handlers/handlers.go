@@ -47,7 +47,8 @@ func NewRouter(s storage.Storager) chi.Router {
 
 func Ping(storage storage.Storager) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-		err := storage.Status(context.TODO())
+		ctx := request.Context()
+		err := storage.Status(ctx)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
@@ -59,7 +60,8 @@ func Ping(storage storage.Storager) http.HandlerFunc {
 func ListAllMetrics(storage storage.Storager) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		var list []string
-		allMetrics, err := storage.GetAllMetrics()
+		ctx := request.Context()
+		allMetrics, err := storage.GetAllMetrics(ctx)
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("Error receiving metrics: %v", err), http.StatusInternalServerError)
 			return
@@ -86,6 +88,7 @@ func ListAllMetrics(storage storage.Storager) http.HandlerFunc {
 
 func PlainGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
+		ctx := req.Context()
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
 		if metricType == "" {
@@ -96,7 +99,7 @@ func PlainGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, "Missing metric name", http.StatusNotFound)
 			return
 		}
-		metric, err := storage.GetMetric(metricName)
+		metric, err := storage.GetMetric(ctx, metricName)
 		if err != nil {
 			http.Error(res, fmt.Sprintf("Error receiving metric: %v", err), http.StatusNotFound)
 			return
@@ -124,6 +127,7 @@ func PlainGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 
 func JSONGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
+		ctx := req.Context()
 		if contentType := req.Header.Get("Content-Type"); contentType != "application/json" {
 			http.Error(res, "Header 'Content-Type: application/json' is required", http.StatusBadRequest)
 			return
@@ -148,7 +152,7 @@ func JSONGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, "Missing metric name", http.StatusNotFound)
 			return
 		}
-		metric, err := storage.GetMetric(receivedMetric.ID)
+		metric, err := storage.GetMetric(ctx, receivedMetric.ID)
 		if err != nil {
 			http.Error(res, fmt.Sprintf("Error receiving metric: %v", err), http.StatusNotFound)
 			return
@@ -168,16 +172,16 @@ func JSONGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 	}
 }
 
-func UpdateMetric(metric models.Metric, storage storage.Storager) (models.Metric, error) {
+func UpdateMetric(ctx context.Context, metric models.Metric, storage storage.Storager) (models.Metric, error) {
 	newMetric := metric
 	if metric.MType == "counter" {
-		if currentMetric, err := storage.GetMetric(metric.ID); err == nil {
+		if currentMetric, err := storage.GetMetric(ctx, metric.ID); err == nil {
 			if currentMetric.MType == "counter" {
 				*newMetric.Delta = *newMetric.Delta + *currentMetric.Delta
 			}
 		}
 	}
-	if err := storage.SaveMetric(metric); err != nil {
+	if err := storage.SaveMetric(ctx, metric); err != nil {
 		return models.Metric{}, err
 	}
 	return newMetric, nil
@@ -185,6 +189,7 @@ func UpdateMetric(metric models.Metric, storage storage.Storager) (models.Metric
 
 func PlainUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
+		ctx := req.Context()
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
 		metricValue := chi.URLParam(req, "value")
@@ -207,7 +212,7 @@ func PlainUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, fmt.Sprintf("Error handling metric: %v", err), http.StatusBadRequest)
 			return
 		}
-		newMetric, err := UpdateMetric(metric, storage)
+		newMetric, err := UpdateMetric(ctx, metric, storage)
 		if err != nil {
 			logger.Log.Errorf("Error updating metric: %v", err)
 			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
@@ -220,7 +225,7 @@ func PlainUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 
 func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
-
+		ctx := req.Context()
 		if contentType := req.Header.Get("Content-Type"); contentType != "application/json" {
 			http.Error(res, "Header 'Content-Type: application/json' is required", http.StatusBadRequest)
 			return
@@ -256,7 +261,7 @@ func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			return
 		}
 
-		newMetric, err := UpdateMetric(receivedMetric, storage)
+		newMetric, err := UpdateMetric(ctx, receivedMetric, storage)
 		if err != nil {
 			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
 			return
