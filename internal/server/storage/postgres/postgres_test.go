@@ -197,7 +197,7 @@ func TestPostgresStorage_SaveMetric(t *testing.T) {
 
 		mock.ExpectQuery("SELECT name, type, value, delta FROM server.metrics WHERE name = $1").WithArgs(checkMetric.ID).
 			WillReturnRows(sqlmock.NewRows([]string{"name", "type", "value", "delta"}).AddRow(checkMetric.ID, checkMetric.MType, checkMetric.Value, checkMetric.Delta))
-		mock.ExpectExec("UPDATE server.metrics SET value=$1, delta=$2 WHERE name=$3").WithArgs(checkMetric.Value, checkMetric.Delta, checkMetric.ID).WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec("UPDATE server.metrics SET type=$1, value=$2, delta=$3 WHERE name=$4").WithArgs(checkMetric.MType, checkMetric.Value, checkMetric.Delta, checkMetric.ID).WillReturnResult(sqlmock.NewResult(1, 1))
 		err = db.SaveMetric(context.TODO(), checkMetric)
 		assert.NoError(t, err)
 

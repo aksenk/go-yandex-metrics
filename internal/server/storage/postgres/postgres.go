@@ -40,8 +40,8 @@ func (p *PostgresStorage) SaveMetric(ctx context.Context, metric models.Metric) 
 	if err != nil {
 		return err
 	}
-	_, err = p.Conn.ExecContext(ctx, "UPDATE server.metrics SET value=$1, delta=$2 WHERE name=$3",
-		metric.Value, metric.Delta, metric.ID)
+	_, err = p.Conn.ExecContext(ctx, "UPDATE server.metrics SET type=$1, value=$2, delta=$3 WHERE name=$4",
+		metric.MType, metric.Value, metric.Delta, metric.ID)
 	return err
 }
 
