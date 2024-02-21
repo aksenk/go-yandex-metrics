@@ -4,13 +4,15 @@ import (
 	"context"
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
+	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
 
 func CreateMockedStorage() (*PostgresStorage, sqlmock.Sqlmock, error) {
-	db, mock, err := sqlmock.New()
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -92,4 +94,143 @@ func TestPostgresStorage_Close(t *testing.T) {
 			t.Errorf("there were unfulfilled expectations: %s", err)
 		}
 	})
+}
+
+func TestPostgresStorage_GetMetric(t *testing.T) {
+	type metric struct {
+		Name  string
+		Type  string
+		Value any
+	}
+	t.Run("metric exist", func(t *testing.T) {
+		var m = metric{
+			Name:  "test_metric",
+			Type:  "counter",
+			Value: 1,
+		}
+		checkMetric, err := models.NewMetric(m.Name, m.Type, m.Value)
+		require.NoError(t, err)
+
+		db, mock, err := CreateMockedStorage()
+		require.NoError(t, err)
+
+		mock.ExpectQuery("SELECT name, type, value, delta FROM server.metrics WHERE name = $1").WithArgs(checkMetric.ID).
+			WillReturnRows(sqlmock.NewRows([]string{"name", "type", "value", "delta"}).AddRow(checkMetric.ID, checkMetric.MType, checkMetric.Value, checkMetric.Delta))
+
+		gotMetric, err := db.GetMetric(context.TODO(), checkMetric.ID)
+		require.NoError(t, err)
+		assert.Equal(t, gotMetric.ID, checkMetric.ID)
+		assert.Equal(t, gotMetric.MType, checkMetric.MType)
+		assert.Equal(t, gotMetric.Value, checkMetric.Value)
+		assert.Equal(t, gotMetric.Delta, checkMetric.Delta)
+
+		if err = mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+
+	})
+
+	t.Run("metric not exist", func(t *testing.T) {
+		var m = metric{
+			Name:  "test_metric",
+			Type:  "gauge",
+			Value: 123,
+		}
+		checkMetric, err := models.NewMetric(m.Name, m.Type, m.Value)
+		require.NoError(t, err)
+
+		db, mock, err := CreateMockedStorage()
+		require.NoError(t, err)
+
+		mock.ExpectQuery("SELECT name, type, value, delta FROM server.metrics WHERE name = $1").WithArgs(checkMetric.ID).WillReturnError(storage.ErrMetricNotExist)
+		gotMetric, err := db.GetMetric(context.TODO(), checkMetric.ID)
+		assert.ErrorIs(t, err, storage.ErrMetricNotExist)
+		assert.Nil(t, gotMetric)
+
+		if err = mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+
+	})
+}
+
+func TestPostgresStorage_SaveMetric(t *testing.T) {
+	type metric struct {
+		Name  string
+		Type  string
+		Value any
+	}
+	t.Run("new metric", func(t *testing.T) {
+		var m = metric{
+			Name:  "test_metric",
+			Type:  "counter",
+			Value: 11,
+		}
+		checkMetric, err := models.NewMetric(m.Name, m.Type, m.Value)
+		require.NoError(t, err)
+
+		db, mock, err := CreateMockedStorage()
+		require.NoError(t, err)
+
+		mock.ExpectQuery("SELECT name, type, value, delta FROM server.metrics WHERE name = $1").WithArgs(checkMetric.ID).
+			WillReturnRows(sqlmock.NewRows([]string{"name", "type", "value", "delta"}))
+		mock.ExpectExec("INSERT INTO server.metrics (name, type, value, delta) VALUES ($1, $2, $3, $4)").WithArgs(checkMetric.ID, checkMetric.MType, checkMetric.Value, checkMetric.Delta).WillReturnResult(sqlmock.NewResult(1, 1))
+		err = db.SaveMetric(context.TODO(), checkMetric)
+		assert.NoError(t, err)
+
+		if err = mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+	})
+
+	t.Run("existing metric", func(t *testing.T) {
+		var m = metric{
+			Name:  "test_metric",
+			Type:  "gauge",
+			Value: 123,
+		}
+		checkMetric, err := models.NewMetric(m.Name, m.Type, m.Value)
+		require.NoError(t, err)
+
+		db, mock, err := CreateMockedStorage()
+		require.NoError(t, err)
+
+		mock.ExpectQuery("SELECT name, type, value, delta FROM server.metrics WHERE name = $1").WithArgs(checkMetric.ID).
+			WillReturnRows(sqlmock.NewRows([]string{"name", "type", "value", "delta"}).AddRow(checkMetric.ID, checkMetric.MType, checkMetric.Value, checkMetric.Delta))
+		mock.ExpectExec("UPDATE server.metrics SET value=$1, delta=$2 WHERE name=$3").WithArgs(checkMetric.Value, checkMetric.Delta, checkMetric.ID).WillReturnResult(sqlmock.NewResult(1, 1))
+		err = db.SaveMetric(context.TODO(), checkMetric)
+		assert.NoError(t, err)
+
+		if err = mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+	})
+}
+
+func TestPostgresStorage_GetAllMetrics(t *testing.T) {
+	t.Run("get all metrics", func(t *testing.T) {
+		db, mock, err := CreateMockedStorage()
+		require.NoError(t, err)
+
+		mock.ExpectQuery("SELECT name, type, value, delta FROM server.metrics").
+			WillReturnRows(sqlmock.NewRows([]string{"name", "type", "value", "delta"}).
+				AddRow("test1", "gauge", 1, nil).
+				AddRow("test2", "counter", nil, 2))
+
+		gotMetrics, err := db.GetAllMetrics(context.TODO())
+		require.NoError(t, err)
+		assert.Equal(t, gotMetrics["test1"].ID, "test1")
+		assert.Equal(t, gotMetrics["test1"].MType, "gauge")
+		assert.EqualValues(t, *gotMetrics["test1"].Value, 1)
+		assert.Nil(t, gotMetrics["test1"].Delta)
+		assert.Equal(t, gotMetrics["test2"].ID, "test2")
+		assert.Equal(t, gotMetrics["test2"].MType, "counter")
+		assert.Nil(t, gotMetrics["test2"].Value)
+		assert.EqualValues(t, *gotMetrics["test2"].Delta, 2)
+
+		if err = mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+	})
+
 }

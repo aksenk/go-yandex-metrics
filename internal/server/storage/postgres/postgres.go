@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/golang-migrate/migrate/v4"
@@ -31,30 +32,25 @@ func NewPostgresStorage(connectionString string, log *zap.SugaredLogger) (*Postg
 
 func (p *PostgresStorage) SaveMetric(ctx context.Context, metric models.Metric) error {
 	_, err := p.GetMetric(ctx, metric.ID)
-	if err == storage.ErrMetricNotExist {
+	if errors.Is(err, storage.ErrMetricNotExist) {
 		_, err = p.Conn.ExecContext(ctx, "INSERT INTO server.metrics (name, type, value, delta) VALUES ($1, $2, $3, $4)",
 			metric.ID, metric.MType, metric.Value, metric.Delta)
-		if err != nil {
-			return err
-		}
+		return err
 	}
 	if err != nil {
 		return err
 	}
 	_, err = p.Conn.ExecContext(ctx, "UPDATE server.metrics SET value=$1, delta=$2 WHERE name=$3",
 		metric.Value, metric.Delta, metric.ID)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (p *PostgresStorage) GetMetric(ctx context.Context, metricName string) (*models.Metric, error) {
 	var metric models.Metric
-	err := p.Conn.QueryRowContext(ctx, "SELECT name, type, value, delta FROM server.metrics WHERE name=$1",
+	err := p.Conn.QueryRowContext(ctx, "SELECT name, type, value, delta FROM server.metrics WHERE name = $1",
 		metricName).
 		Scan(&metric.ID, &metric.MType, &metric.Value, &metric.Delta)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, storage.ErrMetricNotExist
 	}
 	if err != nil {
@@ -120,7 +116,7 @@ func RunMigrations(migrationsDir string, conn *sql.DB) (version uint, dirty bool
 		return 0, false, err
 	}
 	if err = m.Up(); err != nil {
-		if err == migrate.ErrNoChange {
+		if errors.Is(err, migrate.ErrNoChange) {
 			return m.Version()
 		}
 		return 0, false, err
