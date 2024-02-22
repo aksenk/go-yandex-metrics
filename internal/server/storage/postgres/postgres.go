@@ -45,6 +45,10 @@ func (p *PostgresStorage) SaveMetric(ctx context.Context, metric models.Metric) 
 	return err
 }
 
+func (p *PostgresStorage) SaveBatchMetrics(ctx context.Context, metrics []models.Metric) error {
+	return nil
+}
+
 func (p *PostgresStorage) GetMetric(ctx context.Context, metricName string) (*models.Metric, error) {
 	var metric models.Metric
 	err := p.Conn.QueryRowContext(ctx, "SELECT name, type, value, delta FROM server.metrics WHERE name = $1",

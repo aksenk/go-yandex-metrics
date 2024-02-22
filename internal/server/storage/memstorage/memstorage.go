@@ -28,6 +28,10 @@ func (s *MemStorage) SaveMetric(ctx context.Context, m models.Metric) error {
 	return nil
 }
 
+func (s *MemStorage) SaveBatchMetrics(ctx context.Context, metrics []models.Metric) error {
+	return nil
+}
+
 func (s *MemStorage) GetMetric(ctx context.Context, name string) (*models.Metric, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

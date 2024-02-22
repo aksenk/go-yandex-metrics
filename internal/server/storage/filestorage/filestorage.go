@@ -51,6 +51,10 @@ func (f *FileStorage) SaveMetric(ctx context.Context, metric models.Metric) erro
 	return nil
 }
 
+func (f *FileStorage) SaveBatchMetrics(ctx context.Context, metrics []models.Metric) error {
+	return nil
+}
+
 func (f *FileStorage) StartupRestore(ctx context.Context) error {
 	counter := 0
 	f.Logger.Infof("Restoring metrics from a file '%v'", f.FileName)

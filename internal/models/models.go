@@ -23,6 +23,17 @@ func (m Metric) String() string {
 	return ""
 }
 
+type MType string
+
+const (
+	Gauge   MType = "gauge"
+	Counter MType = "counter"
+)
+
+func (m MType) String() string {
+	return string(m)
+}
+
 func NewMetric(name, mtype string, value any) (Metric, error) {
 	if mtype == "gauge" {
 		flValue, err := converter.AnyToFloat64(value)

@@ -25,6 +25,9 @@ func (m *MemStorageDummy) SaveMetric(ctx context.Context, metric models.Metric) 
 	return nil
 }
 
+func (m *MemStorageDummy) SaveBatchMetrics(ctx context.Context, metrics []models.Metric) error {
+	return nil
+}
 func (m *MemStorageDummy) GetMetric(ctx context.Context, name string) (*models.Metric, error) {
 	return &models.Metric{}, nil
 }

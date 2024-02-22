@@ -173,19 +173,39 @@ func JSONGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 	}
 }
 
+func CalculateCounter(ctx context.Context, metric models.Metric, storage storage.Storager) models.Metric {
+	newMetric := metric
+	if currentMetric, err := storage.GetMetric(ctx, metric.ID); err == nil {
+		if currentMetric.MType == "counter" {
+			*newMetric.Delta = *newMetric.Delta + *currentMetric.Delta
+		}
+	}
+	return newMetric
+}
+
 func UpdateMetric(ctx context.Context, metric models.Metric, storage storage.Storager) (models.Metric, error) {
 	newMetric := metric
 	if metric.MType == "counter" {
-		if currentMetric, err := storage.GetMetric(ctx, metric.ID); err == nil {
-			if currentMetric.MType == "counter" {
-				*newMetric.Delta = *newMetric.Delta + *currentMetric.Delta
-			}
-		}
+		newMetric = CalculateCounter(ctx, metric, storage)
 	}
 	if err := storage.SaveMetric(ctx, metric); err != nil {
 		return models.Metric{}, err
 	}
 	return newMetric, nil
+}
+
+func UpdateBatchMetrics(ctx context.Context, metrics []models.Metric, storage storage.Storager) ([]models.Metric, error) {
+	var newMetrics []models.Metric
+	for _, metric := range metrics {
+		newMetric := metric
+		newMetric = CalculateCounter(ctx, metric, storage)
+		newMetrics = append(newMetrics, newMetric)
+	}
+	err := storage.SaveBatchMetrics(ctx, newMetrics)
+	if err != nil {
+		return nil, err
+	}
+	return newMetrics, nil
 }
 
 func PlainUpdaterHandler(storage storage.Storager) http.HandlerFunc {
@@ -267,7 +287,7 @@ func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
 			return
 		}
-		new, err := json.Marshal(newMetric)
+		newJsonMetric, err := json.Marshal(newMetric)
 		if err != nil {
 			logger.Log.Errorf("Error updating metric: %v", err)
 			http.Error(res, err.Error(), http.StatusBadRequest)
@@ -275,9 +295,27 @@ func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 		}
 
 		res.Header().Set("Content-Type", "application/json")
-		res.Write(new)
+		res.Write(newJsonMetric)
 		res.WriteHeader(http.StatusOK)
 	}
+}
+
+func checkMetricIsCorrect(metric models.Metric) error {
+	if metric.ID == "" {
+		return fmt.Errorf("field 'id' is required")
+	}
+	if metric.MType == "counter" {
+		if metric.Value != nil {
+			return fmt.Errorf("value field is not allowed for counter metrics")
+		}
+	} else if metric.MType == "gauge" {
+		if metric.Delta != nil {
+			return fmt.Errorf("delta field is not allowed for gauge metrics")
+		}
+	} else {
+		return fmt.Errorf("unknown metric type")
+	}
+	return nil
 }
 
 func JSONBatchUpdaterHandler(storage storage.Storager) http.HandlerFunc {
@@ -287,51 +325,40 @@ func JSONBatchUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, "Header 'Content-Type: application/json' is required", http.StatusBadRequest)
 			return
 		}
-		var receivedMetric models.Metric
+		var receivedMetric []models.Metric
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
 			http.Error(res, fmt.Sprintf("Error reading body: %v", err), http.StatusBadRequest)
 			return
 		}
 		req.Body.Close()
-		err = json.Unmarshal(body, &receivedMetric)
-		if err != nil {
+
+		if err = json.Unmarshal(body, &receivedMetric); err != nil {
+			// TODO logs?
 			http.Error(res, fmt.Sprintf("Error parsing JSON: %v", err), http.StatusBadRequest)
 			return
 		}
-		if receivedMetric.ID == "" {
-			http.Error(res, "Field 'id' is required", http.StatusBadRequest)
-			return
-		}
-		if receivedMetric.MType == "gauge" {
-			if receivedMetric.Value == nil {
-				http.Error(res, "Field 'value' is required for gauge metrics", http.StatusBadRequest)
+
+		for _, m := range receivedMetric {
+			if err = checkMetricIsCorrect(m); err != nil {
+				http.Error(res, fmt.Sprintf("Metric '%v' is incorrect: %v", m.ID, err), http.StatusBadRequest)
 				return
 			}
-		} else if receivedMetric.MType == "counter" {
-			if receivedMetric.Delta == nil {
-				http.Error(res, "Field 'delta' is required for counter metrics", http.StatusBadRequest)
-				return
-			}
-		} else {
-			http.Error(res, "Unknown value of field 'type'. Should be 'gauge' or 'counter'", http.StatusBadRequest)
-			return
 		}
 
-		newMetric, err := UpdateMetric(ctx, receivedMetric, storage)
+		newMetrics, err := UpdateBatchMetrics(ctx, receivedMetric, storage)
 		if err != nil {
 			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
 			return
 		}
-		new, err := json.Marshal(newMetric)
+		newMetricsJson, err := json.Marshal(newMetrics)
 		if err != nil {
 			logger.Log.Errorf("Error updating metric: %v", err)
 			http.Error(res, err.Error(), http.StatusBadRequest)
 			return
 		}
-
 		res.Header().Set("Content-Type", "application/json")
-		res.Write(new)
 		res.WriteHeader(http.StatusOK)
+		res.Write(newMetricsJson)
 	}
 }
