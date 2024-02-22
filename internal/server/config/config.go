@@ -45,7 +45,7 @@ func GetConfig() (*Config, error) {
 	serverListenAddr := flag.String("a", "localhost:8080", "host:port for server listening")
 	metricsStoreInterval := flag.Int("i", 300, "Period in seconds between flushing metrics to the disk (file storage)")
 	fileStorageFileName := flag.String("f", "", "Path to the file for storing metrics (file storage)")
-	fileStorageStartupRestore := flag.Bool("r", false, "Restoring metrics from the file at startup (file storage)")
+	fileStorageStartupRestore := flag.Bool("r", true, "Restoring metrics from the file at startup (file storage)")
 	databaseDSN := flag.String("d", "", "Postgres connection DSN string (database storage)")
 
 	flag.Parse()

@@ -52,6 +52,15 @@ func (f *FileStorage) SaveMetric(ctx context.Context, metric models.Metric) erro
 }
 
 func (f *FileStorage) SaveBatchMetrics(ctx context.Context, metrics []models.Metric) error {
+	for _, metric := range metrics {
+		err := f.MemStorage.SaveMetric(ctx, metric)
+		if err != nil {
+			return err
+		}
+	}
+	if f.SynchronousFlush {
+		f.FlushMetrics()
+	}
 	return nil
 }
 

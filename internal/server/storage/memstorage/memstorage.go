@@ -29,6 +29,11 @@ func (s *MemStorage) SaveMetric(ctx context.Context, m models.Metric) error {
 }
 
 func (s *MemStorage) SaveBatchMetrics(ctx context.Context, metrics []models.Metric) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, metric := range metrics {
+		s.Metrics[metric.ID] = metric
+	}
 	return nil
 }
 
