@@ -232,5 +232,98 @@ func TestPostgresStorage_GetAllMetrics(t *testing.T) {
 			t.Errorf("there were unfulfilled expectations: %s", err)
 		}
 	})
+}
+
+func TestPostgresStorage_SaveBatchMetric(t *testing.T) {
+	type metric struct {
+		Name  string
+		Type  string
+		Value any
+	}
+	t.Run("new metric", func(t *testing.T) {
+		var rawMetrics = []metric{
+			{
+				Name:  "test_metric",
+				Type:  "counter",
+				Value: 11,
+			},
+			{
+				Name:  "test_metric2",
+				Type:  "gauge",
+				Value: 1,
+			},
+		}
+		var checkMetrics []models.Metric
+
+		db, mock, err := CreateMockedStorage()
+		require.NoError(t, err)
+
+		mock.ExpectBegin()
+
+		for _, m := range rawMetrics {
+			nm, err := models.NewMetric(m.Name, m.Type, m.Value)
+			require.NoError(t, err)
+			checkMetrics = append(checkMetrics, nm)
+
+			mock.ExpectQuery("SELECT name, type, value, delta FROM server.metrics WHERE name = $1").WithArgs(nm.ID).
+				WillReturnRows(sqlmock.NewRows([]string{"name", "type", "value", "delta"}))
+			mock.ExpectExec("INSERT INTO server.metrics (name, type, value, delta) VALUES ($1, $2, $3, $4)").
+				WithArgs(nm.ID, nm.MType, nm.Value, nm.Delta).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+		}
+
+		mock.ExpectCommit()
+
+		err = db.SaveBatchMetrics(context.TODO(), checkMetrics)
+		assert.NoError(t, err)
+
+		if err = mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+	})
+
+	t.Run("existing metric", func(t *testing.T) {
+		var rawMetrics = []metric{
+			{
+				Name:  "test_metric",
+				Type:  "counter",
+				Value: 11,
+			},
+			{
+				Name:  "test_metric2",
+				Type:  "gauge",
+				Value: 1,
+			},
+		}
+		var checkMetrics []models.Metric
+
+		db, mock, err := CreateMockedStorage()
+		require.NoError(t, err)
+
+		mock.ExpectBegin()
+
+		for _, m := range rawMetrics {
+			nm, err := models.NewMetric(m.Name, m.Type, m.Value)
+			require.NoError(t, err)
+			checkMetrics = append(checkMetrics, nm)
+
+			mock.ExpectQuery("SELECT name, type, value, delta FROM server.metrics WHERE name = $1").WithArgs(nm.ID).
+				WillReturnRows(sqlmock.NewRows([]string{"name", "type", "value", "delta"}).
+					AddRow(nm.ID, nm.MType, nm.Value, nm.Delta))
+
+			mock.ExpectExec("UPDATE server.metrics SET type=$1, value=$2, delta=$3 WHERE name=$4").
+				WithArgs(nm.MType, nm.Value, nm.Delta, nm.ID).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+		}
+
+		mock.ExpectCommit()
+
+		err = db.SaveBatchMetrics(context.TODO(), checkMetrics)
+		assert.NoError(t, err)
+
+		if err = mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+	})
 
 }
