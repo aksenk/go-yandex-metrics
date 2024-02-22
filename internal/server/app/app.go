@@ -73,7 +73,7 @@ func NewApp(config *config.Config) (*App, error) {
 		return nil, err
 	}
 	var router chi.Router
-	var storage storage.Storager
+	var s storage.Storager
 
 	logger.Infof("Starting %v storage initialization", config.Storage)
 	synchronousFlush := false
@@ -84,16 +84,16 @@ func NewApp(config *config.Config) (*App, error) {
 
 	switch config.Storage {
 
-	case "memory":
-		storage = memstorage.NewMemStorage(logger)
+	case storage.MemoryStorage:
+		s = memstorage.NewMemStorage(logger)
 
-	case "file":
-		storage, err = filestorage.NewFileStorage(config.FileStorage.FileName, synchronousFlush, logger)
+	case storage.FileStorage:
+		s, err = filestorage.NewFileStorage(config.FileStorage.FileName, synchronousFlush, logger)
 		if err != nil {
 			return nil, fmt.Errorf("can not init fileStorage: %v", err)
 		}
 
-	case "postgres":
+	case storage.PostgresStorage:
 		pgs, err := postgres.NewPostgresStorage(config.PostgresStorage.DSN, logger)
 		if err != nil {
 			return nil, fmt.Errorf("can not init postgresStorage: %v", err)
@@ -110,20 +110,20 @@ func NewApp(config *config.Config) (*App, error) {
 		if dirty {
 			return nil, fmt.Errorf("database version %v have dirty status", version)
 		}
-		storage = pgs
+		s = pgs
 		logger.Infof("Database is up to date. Version: %v", version)
 
 	default:
 		return nil, fmt.Errorf("unknown storage type: %v", config.Storage)
 	}
 
-	router = handlers.NewRouter(storage)
+	router = handlers.NewRouter(s)
 	srv := &http.Server{
 		Addr:    config.Server.ListenAddr,
 		Handler: router,
 	}
 	return &App{
-		storage: storage,
+		storage: s,
 		router:  &router,
 		config:  config,
 		server:  srv,

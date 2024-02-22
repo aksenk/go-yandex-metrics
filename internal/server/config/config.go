@@ -4,12 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"os"
 	"strconv"
 )
 
 type Config struct {
-	Storage         string
+	Storage         storage.SType
 	LogLevel        string
 	Server          serverConfig
 	Metrics         metricsConfig
@@ -80,16 +81,14 @@ func GetConfig() (*Config, error) {
 		}
 		fileStorageStartupRestore = &v
 	}
-	storage := "file"
+	s := storage.MemoryStorage
 	if databaseDSN != nil && *databaseDSN != "" {
-		storage = "postgres"
+		s = storage.PostgresStorage
 	} else if fileStorageFileName != nil && *fileStorageFileName != "" {
-		storage = "file"
-	} else {
-		storage = "memory"
+		s = storage.FileStorage
 	}
 	return &Config{
-		Storage:  storage,
+		Storage:  s,
 		LogLevel: *logLevel,
 		Server: serverConfig{
 			ListenAddr: *serverListenAddr,

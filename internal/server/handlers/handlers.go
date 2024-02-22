@@ -33,6 +33,7 @@ func NewRouter(s storage.Storager) chi.Router {
 		r.Get("/{type}/", PlainGetMetricHandler(s))
 		r.Get("/{type}/{name}", PlainGetMetricHandler(s))
 	})
+	r.Post("/updates", JSONBatchUpdaterHandler(s))
 	// TODO вынести работу со storage в middleware?
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/", JSONUpdaterHandler(s))
@@ -224,6 +225,62 @@ func PlainUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 }
 
 func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
+	return func(res http.ResponseWriter, req *http.Request) {
+		ctx := req.Context()
+		if contentType := req.Header.Get("Content-Type"); contentType != "application/json" {
+			http.Error(res, "Header 'Content-Type: application/json' is required", http.StatusBadRequest)
+			return
+		}
+		var receivedMetric models.Metric
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			http.Error(res, fmt.Sprintf("Error reading body: %v", err), http.StatusBadRequest)
+			return
+		}
+		req.Body.Close()
+		err = json.Unmarshal(body, &receivedMetric)
+		if err != nil {
+			http.Error(res, fmt.Sprintf("Error parsing JSON: %v", err), http.StatusBadRequest)
+			return
+		}
+		if receivedMetric.ID == "" {
+			http.Error(res, "Field 'id' is required", http.StatusBadRequest)
+			return
+		}
+		if receivedMetric.MType == "gauge" {
+			if receivedMetric.Value == nil {
+				http.Error(res, "Field 'value' is required for gauge metrics", http.StatusBadRequest)
+				return
+			}
+		} else if receivedMetric.MType == "counter" {
+			if receivedMetric.Delta == nil {
+				http.Error(res, "Field 'delta' is required for counter metrics", http.StatusBadRequest)
+				return
+			}
+		} else {
+			http.Error(res, "Unknown value of field 'type'. Should be 'gauge' or 'counter'", http.StatusBadRequest)
+			return
+		}
+
+		newMetric, err := UpdateMetric(ctx, receivedMetric, storage)
+		if err != nil {
+			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
+			return
+		}
+		new, err := json.Marshal(newMetric)
+		if err != nil {
+			logger.Log.Errorf("Error updating metric: %v", err)
+			http.Error(res, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		res.Header().Set("Content-Type", "application/json")
+		res.Write(new)
+		res.WriteHeader(http.StatusOK)
+	}
+}
+
+func JSONBatchUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		ctx := req.Context()
 		if contentType := req.Header.Get("Content-Type"); contentType != "application/json" {

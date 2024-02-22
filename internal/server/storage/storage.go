@@ -6,6 +6,14 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 )
 
+type SType string
+
+const (
+	MemoryStorage   SType = "memory"
+	FileStorage     SType = "file"
+	PostgresStorage SType = "postgres"
+)
+
 var ErrMetricNotExist = errors.New("metric not found")
 
 type Storager interface {
