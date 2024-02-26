@@ -11,7 +11,7 @@ import (
 func TestNewConfig(t *testing.T) {
 	var want = map[string]string{
 		"ServerUseHTTPS": "true",
-		"ServerURL":      "https://1.1.1.1:111/update",
+		"ServerURL":      "https://1.1.1.1:111/updates",
 		"PollInterval":   "1",
 		"ReportInterval": "11",
 	}
