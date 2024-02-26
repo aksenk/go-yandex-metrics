@@ -119,10 +119,18 @@ func (f *FileStorage) FlushMetrics() error {
 	}
 	f.Logger.Debugf("Start saving %v metrics to the file", counter)
 	f.FileLock.Lock()
-	f.File.Truncate(0)
-	f.Writer.Flush()
+	err := f.File.Truncate(0)
+	if err != nil {
+		f.Logger.Errorf("Сan not truncate file '%v': %v", f.FileName, err)
+		return err
+	}
+	err = f.Writer.Flush()
+	if err != nil {
+		f.Logger.Errorf("Сan not flush file '%v': %v", f.FileName, err)
+		return err
+	}
 	f.FileLock.Unlock()
-	f.Logger.Infof("RuntimeRequiredMetrics successfully saved")
+	f.Logger.Infof("Metrics successfully saved")
 	return nil
 }
 

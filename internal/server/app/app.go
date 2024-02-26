@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/server/config"
@@ -25,7 +26,7 @@ type App struct {
 }
 
 func (a *App) Start(ctx context.Context) error {
-	if a.config.Storage == "file" {
+	if a.config.Storage == storage.FileStorage {
 		if a.config.Metrics.StartupRestore {
 			err := a.storage.StartupRestore(ctx)
 			if err != nil {
@@ -33,21 +34,21 @@ func (a *App) Start(ctx context.Context) error {
 			}
 		}
 		if a.config.Metrics.StoreInterval > 0 {
-			go a.BackgroundFlusher()
+			go a.BackgroundFlusher(ctx)
 		}
 	}
 
 	a.logger.Infof("Starting web server on %v", a.config.Server.ListenAddr)
-	if err := a.server.ListenAndServe(); err != nil {
+	err := a.server.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
 }
 
-func (a *App) Stop() error {
-	a.logger.Infof("Starting the shutdown of the application")
+func (a *App) Stop(ctx context.Context) error {
 	a.logger.Infof("Closing web server")
-	err := a.server.Shutdown(context.TODO())
+	err := a.server.Shutdown(ctx)
 	if err != nil {
 		return err
 	}
@@ -131,15 +132,20 @@ func NewApp(config *config.Config) (*App, error) {
 	}, nil
 }
 
-func (a *App) BackgroundFlusher() {
+func (a *App) BackgroundFlusher(ctx context.Context) {
 	a.logger.Infof("Starting background metric flushing every %v seconds", a.config.Metrics.StoreInterval)
 	flushTicker := time.NewTicker(time.Duration(a.config.Metrics.StoreInterval) * time.Second)
 	for {
-		<-flushTicker.C
-		err := a.storage.FlushMetrics()
-		if err != nil {
-			a.logger.Errorf("FileStorage.BackgroundFlusher error saving metrics to the disk: %v", err)
-			continue
+		select {
+		case <-flushTicker.C:
+			err := a.storage.FlushMetrics()
+			if err != nil {
+				a.logger.Errorf("FileStorage.BackgroundFlusher error saving metrics to the disk: %v", err)
+				continue
+			}
+		case <-ctx.Done():
+			a.logger.Infof("BackgroundFlusher stopped")
+			return
 		}
 	}
 }
