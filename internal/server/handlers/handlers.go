@@ -33,7 +33,7 @@ func NewRouter(s storage.Storager) chi.Router {
 		r.Get("/{type}/", PlainGetMetricHandler(s))
 		r.Get("/{type}/{name}", PlainGetMetricHandler(s))
 	})
-	r.Post("/updates", JSONBatchUpdaterHandler(s))
+	r.Post("/updates/", JSONBatchUpdaterHandler(s))
 	// TODO вынести работу со storage в middleware?
 	r.Route("/update", func(r chi.Router) {
 		r.Post("/", JSONUpdaterHandler(s))
@@ -287,7 +287,7 @@ func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
 			return
 		}
-		newJsonMetric, err := json.Marshal(newMetric)
+		newJSONMetric, err := json.Marshal(newMetric)
 		if err != nil {
 			logger.Log.Errorf("Error updating metric: %v", err)
 			http.Error(res, err.Error(), http.StatusBadRequest)
@@ -295,7 +295,7 @@ func JSONUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 		}
 
 		res.Header().Set("Content-Type", "application/json")
-		res.Write(newJsonMetric)
+		res.Write(newJSONMetric)
 		res.WriteHeader(http.StatusOK)
 	}
 }

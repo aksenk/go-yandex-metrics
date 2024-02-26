@@ -66,9 +66,9 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 	if serverUseHTTPSBool {
-		serverURL = fmt.Sprintf("https://%v/updates", *serverAddr)
+		serverURL = fmt.Sprintf("https://%v/updates/", *serverAddr)
 	} else {
-		serverURL = fmt.Sprintf("http://%v/updates", *serverAddr)
+		serverURL = fmt.Sprintf("http://%v/updates/", *serverAddr)
 	}
 
 	return &Config{
