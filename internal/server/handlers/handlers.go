@@ -351,7 +351,7 @@ func JSONBatchUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 			http.Error(res, fmt.Sprintf("Error updating metric: %v", err), http.StatusInternalServerError)
 			return
 		}
-		newMetricsJson, err := json.Marshal(newMetrics)
+		newMetricsJSON, err := json.Marshal(newMetrics)
 		if err != nil {
 			logger.Log.Errorf("Error updating metric: %v", err)
 			http.Error(res, err.Error(), http.StatusBadRequest)
@@ -359,6 +359,6 @@ func JSONBatchUpdaterHandler(storage storage.Storager) http.HandlerFunc {
 		}
 		res.Header().Set("Content-Type", "application/json")
 		res.WriteHeader(http.StatusOK)
-		res.Write(newMetricsJson)
+		res.Write(newMetricsJSON)
 	}
 }
