@@ -122,7 +122,7 @@ func (f *FileStorage) FlushMetrics() error {
 	f.File.Truncate(0)
 	f.Writer.Flush()
 	f.FileLock.Unlock()
-	f.Logger.Infof("Metrics successfully saved")
+	f.Logger.Infof("RuntimeRequiredMetrics successfully saved")
 	return nil
 }
 

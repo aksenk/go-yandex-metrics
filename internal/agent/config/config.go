@@ -13,15 +13,17 @@ type Config struct {
 	ServerURL      string
 	PollInterval   time.Duration
 	ReportInterval time.Duration
+	LogLevel       string
 }
 
 func NewConfig() (*Config, error) {
 	var serverURL string
 	var err error
 	serverUseHTTPS := flag.String("s", "false", "Use HTTPS connection to the server")
-	serverAddr := flag.String("a", "localhost:8080", "Metrics server address (host:port)")
+	serverAddr := flag.String("a", "localhost:8080", "RuntimeRequiredMetrics server address (host:port)")
 	pollInterval := flag.String("p", "2", "Interval for scraping metrics (in seconds)")
 	reportInterval := flag.String("r", "10", "Interval for sending metrics (in seconds)")
+	logLevel := flag.String("l", "debug", "Log level")
 
 	flag.Parse()
 	if e := os.Getenv("USE_HTTPS"); e != "" {
@@ -35,6 +37,9 @@ func NewConfig() (*Config, error) {
 	}
 	if e := os.Getenv("REPORT_INTERVAL"); e != "" {
 		reportInterval = &e
+	}
+	if e := os.Getenv("LOG_LEVEL"); e != "" {
+		logLevel = &e
 	}
 	reportIntervalInt, err := strconv.Atoi(*reportInterval)
 	if err != nil {
@@ -60,6 +65,7 @@ func NewConfig() (*Config, error) {
 	return &Config{
 		ServerUseHTTPS: serverUseHTTPSBool,
 		ServerURL:      serverURL,
+		LogLevel:       *logLevel,
 		PollInterval:   time.Second * time.Duration(pollIntervalInt),
 		ReportInterval: time.Second * time.Duration(reportIntervalInt),
 	}, nil

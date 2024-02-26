@@ -8,5 +8,5 @@ services:
     environment:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: go_yandex_metrics
-    # volumes:
-    #   - pgdata:/var/lib/postgresql/data
+    volumes:
+      - pgdata:/var/lib/postgresql/data
