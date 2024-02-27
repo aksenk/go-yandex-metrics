@@ -250,19 +250,29 @@ func UpdateMetric(ctx context.Context, metric models.Metric, storage storage.Sto
 
 func UpdateBatchMetrics(ctx context.Context, metrics []models.Metric, storage storage.Storager) ([]models.Metric, error) {
 	var newMetrics []models.Metric
+OuterLoop:
 	for _, metric := range metrics {
+		isExist := false
 		newMetric := metric
-		newMetric = CalculateCounter(ctx, metric, storage)
 		for _, m := range newMetrics {
+			// если метрика уже встречалась в батче
 			if m.ID == newMetric.ID {
+				isExist = true
 				if m.MType == "counter" {
-					*m.Delta = *m.Delta + *newMetric.Delta
+					// если это counter, то суммируем с предыдущим значением, которое было в метрике из этого же батча
+					*m.Delta += *newMetric.Delta
 				} else {
+					// если это gauge, то заменяем его значение на новое из этого же батча
 					*m.Value = *newMetric.Value
 				}
+				break OuterLoop
 			}
 		}
-		newMetrics = append(newMetrics, newMetric)
+		// если метрика еще не встречалась в батче, то рассчитываем ее значение (для counter) и сохраняем в список
+		if !isExist {
+			newMetric = CalculateCounter(ctx, metric, storage)
+			newMetrics = append(newMetrics, newMetric)
+		}
 	}
 	err := storage.SaveBatchMetrics(ctx, newMetrics)
 	if err != nil {
