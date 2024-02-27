@@ -1,8 +1,10 @@
 package logger
 
 import (
+	"bytes"
 	"fmt"
 	"go.uber.org/zap"
+	"io"
 	"net/http"
 	"time"
 )
@@ -63,7 +65,7 @@ func NewLogger(level string) (*zap.SugaredLogger, error) {
 
 func Middleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		logger, err := NewLogger("info")
+		logger, err := NewLogger("debug")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -71,13 +73,24 @@ func Middleware(next http.Handler) http.Handler {
 		start := time.Now()
 		uri := r.RequestURI
 		method := r.Method
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			logger.Errorf("Error reading request body: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		r.Body = io.NopCloser(bytes.NewBuffer(body)) // reset body to its original state
+
 		lrw := loggingResponseWriter{
 			ResponseWriter: w,
 			responseData:   &responseData{},
 		}
 		next.ServeHTTP(&lrw, r)
 		duration := time.Since(start)
-		logger.Infof("Request URI=%v method=%v duration=%v", uri, method, duration)
+
+		logger.Infof("Request URI=%v method=%v duration=%v headers=%v body=%v", uri, method, duration, r.Header, string(body))
 		logger.Infof("Response statusCode=%v size=%v", lrw.responseData.statusCode, lrw.responseData.size)
 	}
 	return http.HandlerFunc(fn)
