@@ -54,7 +54,6 @@ func (p *PostgresStorage) SaveBatchMetrics(ctx context.Context, metrics []models
 	for _, metric := range metrics {
 		_, err = p.GetMetric(ctx, metric.ID)
 		if errors.Is(err, storage.ErrMetricNotExist) {
-			p.Logger.Debugf("insert")
 			_, err = tx.ExecContext(ctx, "INSERT INTO server.metrics (name, type, value, delta) VALUES ($1, $2, $3, $4)",
 				metric.ID, metric.MType, metric.Value, metric.Delta)
 			if err != nil {
@@ -65,7 +64,6 @@ func (p *PostgresStorage) SaveBatchMetrics(ctx context.Context, metrics []models
 		if err != nil {
 			return err
 		}
-		p.Logger.Debugf("update")
 
 		_, err = tx.ExecContext(ctx, "UPDATE server.metrics SET type=$1, value=$2, delta=$3 WHERE name=$4",
 			metric.MType, metric.Value, metric.Delta, metric.ID)

@@ -118,7 +118,7 @@ func NewApp(config *config.Config) (*App, error) {
 		return nil, fmt.Errorf("unknown storage type: %v", config.Storage)
 	}
 
-	router = handlers.NewRouter(s)
+	router = handlers.NewRouter(s, logger)
 	srv := &http.Server{
 		Addr:    config.Server.ListenAddr,
 		Handler: router,
