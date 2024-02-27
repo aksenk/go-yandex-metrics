@@ -250,13 +250,16 @@ func UpdateMetric(ctx context.Context, metric models.Metric, storage storage.Sto
 
 func UpdateBatchMetrics(ctx context.Context, metrics []models.Metric, storage storage.Storager) ([]models.Metric, error) {
 	var newMetrics []models.Metric
-OuterLoop:
 	for _, metric := range metrics {
 		newMetric := metric
 		newMetric = CalculateCounter(ctx, metric, storage)
 		for _, m := range newMetrics {
 			if m.ID == newMetric.ID {
-				continue OuterLoop
+				if m.MType == "counter" {
+					*m.Delta = *m.Delta + *newMetric.Delta
+				} else {
+					*m.Value = *newMetric.Value
+				}
 			}
 		}
 		newMetrics = append(newMetrics, newMetric)
