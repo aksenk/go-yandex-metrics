@@ -265,7 +265,7 @@ OuterLoop:
 					// если это gauge, то заменяем его значение на новое из этого же батча
 					*m.Value = *newMetric.Value
 				}
-				break OuterLoop
+				continue OuterLoop
 			}
 		}
 		// если метрика еще не встречалась в батче, то рассчитываем ее значение (для counter) и сохраняем в список
