@@ -22,7 +22,7 @@ func main() {
 		log.Fatalf("Error creating logger: %v", err)
 	}
 	client := http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: time.Duration(cfg.ClientTimeout) * time.Second,
 	}
 
 	agent, err := app.NewApp(&client, cfgLog, cfg)

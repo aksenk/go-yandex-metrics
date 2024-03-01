@@ -18,6 +18,7 @@ type Config struct {
 	RetryAttempts        int
 	RetryWaitTime        int
 	RetryInitialWaitTime int
+	ClientTimeout        int
 }
 
 func NewConfig() (*Config, error) {
@@ -31,6 +32,7 @@ func NewConfig() (*Config, error) {
 	batchSize := flag.String("b", "50", "Batch size")
 	retryAttempts := 3
 	retryWaitTime := 2
+	clientTimeout := 10
 
 	flag.Parse()
 	if e := os.Getenv("USE_HTTPS"); e != "" {
@@ -85,5 +87,6 @@ func NewConfig() (*Config, error) {
 		BatchSize:      batchSizeInt,
 		RetryAttempts:  retryAttempts,
 		RetryWaitTime:  retryWaitTime,
+		ClientTimeout:  clientTimeout,
 	}, nil
 }
