@@ -2,6 +2,7 @@ package logger
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"github.com/go-chi/chi/v5/middleware"
@@ -87,6 +88,22 @@ func Middleware(log *zap.SugaredLogger) func(next http.Handler) http.Handler {
 
 			r.Body = io.NopCloser(bytes.NewBuffer(body)) // reset body to its original state
 			r.Body.Close()
+
+			if r.Header.Get("Content-Encoding") == "gzip" {
+				read, err := gzip.NewReader(bytes.NewReader(body))
+				if err != nil {
+					log.Errorf("Error reading gzip body: %v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				ungz, err := io.ReadAll(read)
+				if err != nil {
+					log.Errorf("Error reading gzip body: %v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				body = ungz
+			}
 
 			lrw := loggingResponseWriter{
 				ResponseWriter: w,

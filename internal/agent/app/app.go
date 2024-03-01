@@ -8,6 +8,7 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/agent/config"
 	"github.com/aksenk/go-yandex-metrics/internal/agent/metrics"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/retry"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -22,6 +23,10 @@ type App struct {
 	PollCounter            int64
 	ReportTicker           *time.Ticker
 }
+
+var errMetricSend = fmt.Errorf("error sending metric")
+var errStatusCode = fmt.Errorf("unexpected response status code")
+var errReadBody = fmt.Errorf("error reading response body")
 
 func NewApp(client *http.Client, logger *zap.SugaredLogger, config *config.Config) (*App, error) {
 	runtimeRequiredMetrics := []string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc",
@@ -52,7 +57,18 @@ func (a *App) WaitMetrics() {
 	for {
 		<-a.ReportTicker.C
 		resultMetrics := <-a.ReadyMetrics
-		err := a.sendBatchMetrics(resultMetrics)
+
+		withRetry := retry.NewRetry(a.Logger, a.Config.RetryAttempts, a.Config.RetryWaitTime, func() error {
+			statusCode, err := a.sendBatchMetrics(resultMetrics)
+			if err != nil {
+				if statusCode < 200 || statusCode >= 500 {
+					return err
+				}
+			}
+			return nil
+		})
+
+		err := withRetry.Do()
 		if err != nil {
 			a.Logger.Errorf("Can not send metrics: %s", err)
 			continue
@@ -88,7 +104,7 @@ func (a *App) GetMetrics() {
 	}
 }
 
-func (a *App) sendBatchMetrics(metrics []models.Metric) error {
+func (a *App) sendBatchMetrics(metrics []models.Metric) (statusCode int, err error) {
 	for i := 0; i < len(metrics); i += a.Config.BatchSize {
 		end := i + a.Config.BatchSize
 		if end > len(metrics) {
@@ -100,44 +116,44 @@ func (a *App) sendBatchMetrics(metrics []models.Metric) error {
 
 		jsonData, err := json.Marshal(batch)
 		if err != nil {
-			return fmt.Errorf("can not marshal data: %v", err)
+			return 0, fmt.Errorf("can not marshal data: %v", err)
 		}
 
 		var gzippedBody bytes.Buffer
 		w := gzip.NewWriter(&gzippedBody)
 
 		if _, err = w.Write(jsonData); err != nil {
-			return fmt.Errorf("can not gzip data: %v", err)
+			return 0, fmt.Errorf("can not gzip data: %v", err)
 		}
 
 		if err = w.Close(); err != nil {
-			return fmt.Errorf("can not close gzip writer: %v", err)
+			return 0, fmt.Errorf("can not close gzip writer: %v", err)
 		}
 
 		req, err := http.NewRequest(http.MethodPost, a.Config.ServerURL, &gzippedBody)
 		if err != nil {
-			return fmt.Errorf("can not create request: %v", err)
+			return 0, fmt.Errorf("can not create request: %v", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Encoding", "gzip")
 
 		res, err := a.Client.Do(req)
 		if err != nil {
-			return fmt.Errorf("error sending metric: %s", err)
+			return 0, fmt.Errorf("%w: %s", errMetricSend, err)
 		}
 
 		var resBody []byte
 		_, err = res.Body.Read(resBody)
 		res.Body.Close()
 		if err != nil {
-			return fmt.Errorf("error reading response body: %s", err)
+			return 0, fmt.Errorf("%w: %s", errReadBody, err)
 		}
 
-		if res.StatusCode != 200 {
-			return fmt.Errorf("unexpected response status code: %v, response: %v", res.StatusCode, string(resBody))
+		if res.StatusCode != http.StatusOK {
+			return res.StatusCode, fmt.Errorf("%w: %v, response: %v", errStatusCode, res.StatusCode, string(resBody))
 		}
 
 		a.Logger.Debugf("Batch sended")
 	}
-	return nil
+	return http.StatusOK, nil
 }

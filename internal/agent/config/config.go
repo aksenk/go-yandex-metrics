@@ -9,12 +9,15 @@ import (
 )
 
 type Config struct {
-	ServerUseHTTPS bool
-	ServerURL      string
-	PollInterval   time.Duration
-	ReportInterval time.Duration
-	LogLevel       string
-	BatchSize      int
+	ServerUseHTTPS       bool
+	ServerURL            string
+	PollInterval         time.Duration
+	ReportInterval       time.Duration
+	LogLevel             string
+	BatchSize            int
+	RetryAttempts        int
+	RetryWaitTime        int
+	RetryInitialWaitTime int
 }
 
 func NewConfig() (*Config, error) {
@@ -26,6 +29,8 @@ func NewConfig() (*Config, error) {
 	reportInterval := flag.String("r", "10", "Interval for sending metrics (in seconds)")
 	logLevel := flag.String("l", "debug", "Log level")
 	batchSize := flag.String("b", "50", "Batch size")
+	retryAttempts := 3
+	retryWaitTime := 2
 
 	flag.Parse()
 	if e := os.Getenv("USE_HTTPS"); e != "" {
@@ -78,5 +83,7 @@ func NewConfig() (*Config, error) {
 		PollInterval:   time.Second * time.Duration(pollIntervalInt),
 		ReportInterval: time.Second * time.Duration(reportIntervalInt),
 		BatchSize:      batchSizeInt,
+		RetryAttempts:  retryAttempts,
+		RetryWaitTime:  retryWaitTime,
 	}, nil
 }
