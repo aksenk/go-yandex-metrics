@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/agent/config"
@@ -44,40 +45,47 @@ func NewApp(client *http.Client, logger *zap.SugaredLogger, config *config.Confi
 	}, nil
 }
 
-func (a *App) Run() error {
+func (a *App) Run(ctx context.Context) error {
 	a.Logger.Infof("Starting agent")
 	a.Logger.Infof("Collecting metric every %s and sending every %v",
 		a.Config.PollInterval, a.Config.ReportInterval)
-	go a.GetMetrics()
-	a.WaitMetrics()
+	go a.GetMetrics(ctx)
+	a.WaitMetrics(ctx)
 	return nil
 }
 
-func (a *App) WaitMetrics() {
+func (a *App) WaitMetrics(ctx context.Context) {
 	for {
-		<-a.ReportTicker.C
-		resultMetrics := <-a.ReadyMetrics
+		select {
+		case <-a.ReportTicker.C:
+			resultMetrics := <-a.ReadyMetrics
 
-		withRetry := retry.NewRetry(a.Logger, a.Config.RetryAttempts, a.Config.RetryWaitTime, func() error {
-			statusCode, err := a.sendBatchMetrics(resultMetrics)
-			if err != nil {
-				if statusCode < 200 || statusCode >= 500 {
-					return err
+			withRetry := retry.NewRetryer(a.Logger, a.Config.RetryAttempts, time.Duration(a.Config.RetryWaitTime), func(ctx context.Context) error {
+				statusCode, err := a.sendBatchMetrics(resultMetrics)
+				if err != nil {
+					if statusCode < 200 || statusCode >= 500 {
+						return err
+					}
 				}
-			}
-			return nil
-		})
+				return nil
+			})
 
-		err := withRetry.Do()
-		if err != nil {
-			a.Logger.Errorf("Can not send metrics: %s", err)
-			continue
+			err := withRetry.Do(ctx)
+			if err != nil {
+				a.Logger.Errorf("Can not send metrics: %s", err)
+				continue
+			}
+			a.Logger.Debugf("Metrics have been sent successfully")
+
+		case <-ctx.Done():
+			a.Logger.Infof("Stopping sending metrics")
+			return
 		}
-		a.Logger.Debugf("Metrics have been sent successfully")
 	}
+
 }
 
-func (a *App) GetMetrics() {
+func (a *App) GetMetrics(ctx context.Context) {
 	pollCounter := int64(0)
 	var pollCountMetric, randomValueMetric models.Metric
 	for {
@@ -91,6 +99,9 @@ func (a *App) GetMetrics() {
 		metrics.GenerateCustomMetrics(&pollCountMetric, &randomValueMetric, &pollCounter)
 		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)
 		select {
+		case <-ctx.Done():
+			a.Logger.Infof("Stopping receiving metrics")
+			return
 		// если канал пуст - помещаем туда данные
 		case a.ReadyMetrics <- resultMetrics:
 		// если в канале уже есть данные

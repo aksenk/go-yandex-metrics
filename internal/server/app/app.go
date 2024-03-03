@@ -95,24 +95,30 @@ func NewApp(config *config.Config) (*App, error) {
 		}
 
 	case storage.PostgresStorage:
-		pgs, err := postgres.NewPostgresStorage(config.PostgresStorage.DSN, logger)
+		pgs, err := postgres.NewPostgresStorage(config, logger)
 		if err != nil {
 			return nil, fmt.Errorf("can not init postgresStorage: %v", err)
 		}
+
+		logger.Infof("Checking postgres connection")
 		err = pgs.Status(context.TODO())
 		if err != nil {
+			logger.Errorf("Postgres connection is not OK: %v", err)
 			return nil, err
 		}
+		logger.Infof("Postgres connection is OK")
+
 		logger.Infof("Starting database migrations")
-		version, dirty, err := postgres.RunMigrations("./migrations/postgres", pgs.Conn)
-		if err != nil {
+		migrator := postgres.NewMigrator(pgs.Conn, config, logger)
+		migrator.Run()
+		if migrator.Err() != nil {
 			return nil, fmt.Errorf("can not run migrations: %v", err)
 		}
-		if dirty {
-			return nil, fmt.Errorf("database version %v have dirty status", version)
+		if migrator.Dirty() {
+			return nil, fmt.Errorf("database version %v have dirty status", migrator.Version())
 		}
 		s = pgs
-		logger.Infof("Database is up to date. Version: %v", version)
+		logger.Infof("Database is up to date. Version: %v", migrator.Version())
 
 	default:
 		return nil, fmt.Errorf("unknown storage type: %v", config.Storage)
@@ -120,8 +126,12 @@ func NewApp(config *config.Config) (*App, error) {
 
 	router = handlers.NewRouter(s, logger)
 	srv := &http.Server{
-		Addr:    config.Server.ListenAddr,
-		Handler: router,
+		Addr:              config.Server.ListenAddr,
+		Handler:           router,
+		WriteTimeout:      20 * time.Second,
+		ReadTimeout:       20 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		ReadHeaderTimeout: 20 * time.Second,
 	}
 	return &App{
 		storage: s,

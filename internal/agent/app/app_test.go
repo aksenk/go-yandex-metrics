@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"github.com/aksenk/go-yandex-metrics/internal/agent/config"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
@@ -172,7 +173,7 @@ func TestWaitMetrics(t *testing.T) {
 			app := createTestApp(t, &cfg)
 			app.ReadyMetrics <- metrics
 
-			go app.WaitMetrics()
+			go app.WaitMetrics(context.TODO())
 
 			time.Sleep(time.Second * time.Duration(tt.checkAfter))
 
@@ -256,7 +257,7 @@ func Test_GetMetrics(t *testing.T) {
 			wantMetric, err := models.NewMetric(tt.want.Name, tt.want.Type, tt.want.Value)
 			require.NoError(t, err)
 
-			go app.GetMetrics()
+			go app.GetMetrics(context.TODO())
 			time.Sleep(tt.sleepTime)
 			var data []models.Metric
 			select {

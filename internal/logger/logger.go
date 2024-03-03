@@ -111,18 +111,21 @@ func Middleware(log *zap.SugaredLogger) func(next http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), KeyLogger, log)
-			next.ServeHTTP(&lrw, r.WithContext(ctx))
-			duration := time.Since(start)
 
 			log.With("URI", uri,
 				"method", method,
-				"duration", duration,
 				"headers", r.Header,
 				"body", string(body),
 				"request_id", middleware.GetReqID(r.Context())).
 				Info("Received request")
+
+			next.ServeHTTP(&lrw, r.WithContext(ctx))
+
+			duration := time.Since(start)
+
 			log.With("statusCode", lrw.responseData.statusCode,
 				"size", lrw.responseData.size,
+				"duration", duration,
 				"request_id", middleware.GetReqID(r.Context())).
 				Info("Sent response")
 		}

@@ -5,6 +5,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/server/config"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/filestorage"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/postgres"
@@ -391,10 +392,18 @@ func TestPing(t *testing.T) {
 
 		require.NoError(t, err)
 
-		storage := &postgres.PostgresStorage{
-			Conn:   db,
-			Logger: logger,
+		cfg := config.Config{
+			Storage: "postgres",
+			PostgresStorage: config.PostgresConfig{
+				DSN:  "postgres://postgres:password@localhost:5431/db",
+				Type: "postgres",
+			},
 		}
+		storage, err := postgres.NewPostgresStorage(&cfg, logger)
+		require.NoError(t, err)
+		
+		storage.Conn = db
+		storage.Logger = logger
 
 		server := httptest.NewServer(Ping(storage))
 		response, err := server.Client().Get(server.URL + "/ping")
@@ -407,7 +416,14 @@ func TestPing(t *testing.T) {
 	t.Run("with unavailable postgres storage", func(t *testing.T) {
 		require.NoError(t, err)
 
-		storage, err := postgres.NewPostgresStorage("postgres://postgres:password@localhost:5431/db", logger)
+		cfg := config.Config{
+			Storage: "postgres",
+			PostgresStorage: config.PostgresConfig{
+				DSN:  "postgres://postgres:password@localhost:5431/db",
+				Type: "postgres",
+			},
+		}
+		storage, err := postgres.NewPostgresStorage(&cfg, logger)
 		require.NoError(t, err)
 
 		server := httptest.NewServer(Ping(storage))

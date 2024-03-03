@@ -12,28 +12,35 @@ import (
 type Config struct {
 	Storage         storage.SType
 	LogLevel        string
-	Server          serverConfig
-	Metrics         metricsConfig
-	FileStorage     fileStorageConfig
-	PostgresStorage databaseConfig
+	Server          ServerConfig
+	Metrics         MetricsConfig
+	FileStorage     FileStorageConfig
+	PostgresStorage PostgresConfig
+	RetryConfig     RetryConfig
 }
 
-type serverConfig struct {
+type RetryConfig struct {
+	RetryAttempts int
+	RetryWaitTime int
+}
+
+type ServerConfig struct {
 	ListenAddr string
 }
 
-type metricsConfig struct {
+type MetricsConfig struct {
 	StoreInterval  int
 	StartupRestore bool
 }
 
-type fileStorageConfig struct {
+type FileStorageConfig struct {
 	FileName string
 }
 
-type databaseConfig struct {
-	DSN  string
-	Type string
+type PostgresConfig struct {
+	DSN           string
+	Type          string
+	MigrationsDir string
 }
 
 func GetConfig() (*Config, error) {
@@ -47,6 +54,9 @@ func GetConfig() (*Config, error) {
 	fileStorageFileName := flag.String("f", "", "Path to the file for storing metrics (file storage)")
 	fileStorageStartupRestore := flag.Bool("r", true, "Restoring metrics from the file at startup (file storage)")
 	databaseDSN := flag.String("d", "", "Postgres connection DSN string (database storage)")
+	retryAttempts := 3
+	retryWaitTime := 2
+	migrationsDir := "./migrations/postgres"
 
 	flag.Parse()
 
@@ -90,18 +100,24 @@ func GetConfig() (*Config, error) {
 	return &Config{
 		Storage:  s,
 		LogLevel: *logLevel,
-		Server: serverConfig{
+		Server: ServerConfig{
 			ListenAddr: *serverListenAddr,
 		},
-		Metrics: metricsConfig{
+		Metrics: MetricsConfig{
 			StoreInterval:  *metricsStoreInterval,
 			StartupRestore: *fileStorageStartupRestore,
 		},
-		FileStorage: fileStorageConfig{
+		FileStorage: FileStorageConfig{
 			FileName: *fileStorageFileName,
 		},
-		PostgresStorage: databaseConfig{
-			DSN: *databaseDSN,
+		PostgresStorage: PostgresConfig{
+			DSN:           *databaseDSN,
+			Type:          "postgres",
+			MigrationsDir: migrationsDir,
+		},
+		RetryConfig: RetryConfig{
+			RetryAttempts: retryAttempts,
+			RetryWaitTime: retryWaitTime,
 		},
 	}, nil
 }

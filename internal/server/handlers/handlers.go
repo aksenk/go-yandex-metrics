@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"time"
 )
 
 func NewRouter(s storage.Storager, log *zap.SugaredLogger) chi.Router {
@@ -23,7 +22,7 @@ func NewRouter(s storage.Storager, log *zap.SugaredLogger) chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(logger.Middleware(log))
-	r.Use(middleware.Timeout(time.Second * 5))
+	//r.Use(middleware.Timeout(time.Second * 10))
 	r.Use(compress.Middleware)
 	r.Get("/", ListAllMetrics(s))
 	r.Get("/ping", Ping(s))
@@ -227,29 +226,32 @@ func JSONGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 	}
 }
 
-func CalculateCounter(ctx context.Context, metric models.Metric, storage storage.Storager) models.Metric {
+func CalculateCounter(ctx context.Context, metric models.Metric, storage storage.Storager) (models.Metric, error) {
 	newMetric := metric
-	if currentMetric, err := storage.GetMetric(ctx, metric.ID); err == nil {
+	currentMetric, err := storage.GetMetric(ctx, metric.ID)
+	if err == nil {
 		if currentMetric.MType == "counter" {
 			*newMetric.Delta = *newMetric.Delta + *currentMetric.Delta
 		}
 	}
-	return newMetric
+	return newMetric, err
 }
 
 func UpdateMetric(ctx context.Context, metric models.Metric, storage storage.Storager) (models.Metric, error) {
 	newMetric := metric
+	var err error
 	if metric.MType == "counter" {
-		newMetric = CalculateCounter(ctx, metric, storage)
+		newMetric, err = CalculateCounter(ctx, metric, storage)
+		if err != nil {
+			return newMetric, err
+		}
 	}
-	if err := storage.SaveMetric(ctx, metric); err != nil {
-		return models.Metric{}, err
-	}
-	return newMetric, nil
+	return newMetric, storage.SaveMetric(ctx, metric)
 }
 
 func UpdateBatchMetrics(ctx context.Context, metrics []models.Metric, storage storage.Storager) ([]models.Metric, error) {
 	var newMetrics []models.Metric
+	var err error
 OuterLoop:
 	for _, metric := range metrics {
 		isExist := false
@@ -270,13 +272,16 @@ OuterLoop:
 		}
 		// если метрика еще не встречалась в батче, то рассчитываем ее значение (для counter) и сохраняем в список
 		if !isExist {
-			newMetric = CalculateCounter(ctx, metric, storage)
+			newMetric, err = CalculateCounter(ctx, metric, storage)
+			if err != nil {
+				return nil, fmt.Errorf("error calculating counter: %w", err)
+			}
 			newMetrics = append(newMetrics, newMetric)
 		}
 	}
-	err := storage.SaveBatchMetrics(ctx, newMetrics)
+	err = storage.SaveBatchMetrics(ctx, newMetrics)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error saving metrics: %w", err)
 	}
 	return newMetrics, nil
 }
