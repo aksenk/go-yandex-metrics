@@ -401,7 +401,7 @@ func TestPing(t *testing.T) {
 		}
 		storage, err := postgres.NewPostgresStorage(&cfg, logger)
 		require.NoError(t, err)
-		
+
 		storage.Conn = db
 		storage.Logger = logger
 

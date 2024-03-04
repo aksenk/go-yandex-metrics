@@ -12,6 +12,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
+	"net"
 	"time"
 )
 
@@ -128,8 +129,24 @@ func (p *PostgresStorage) GetMetric(ctx context.Context, metricName string) (*mo
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
+
 		if err != nil {
-			return err
+			var netErr net.Error
+			// возвращаем ошибку (для выполнения ретрая) только при сетевых ошибках
+			if errors.As(err, &netErr) {
+				p.Logger.Fatalf("Connection error: %s", err)
+				return err
+			}
+			//if pgerrcode.IsConnectionException(err.Error()) {
+			//	p.Logger.Fatalf("Connection error: %s", err)
+			//	return err
+			//}
+			// в остальных случаях ретрай не делаем
+			return nil
+			//if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNABORTED) {
+			//	p.Logger.Fatalf("Connection error: %s", err)
+			//	return err
+			//}
 		}
 		return nil
 	})

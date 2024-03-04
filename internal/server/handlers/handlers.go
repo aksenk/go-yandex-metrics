@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
@@ -226,13 +227,14 @@ func JSONGetMetricHandler(storage storage.Storager) http.HandlerFunc {
 	}
 }
 
-func CalculateCounter(ctx context.Context, metric models.Metric, storage storage.Storager) (models.Metric, error) {
+func CalculateCounter(ctx context.Context, metric models.Metric, s storage.Storager) (models.Metric, error) {
 	newMetric := metric
-	currentMetric, err := storage.GetMetric(ctx, metric.ID)
-	if err == nil {
+	currentMetric, err := s.GetMetric(ctx, metric.ID)
+	if err == nil || errors.Is(err, storage.ErrMetricNotExist) {
 		if currentMetric.MType == "counter" {
 			*newMetric.Delta = *newMetric.Delta + *currentMetric.Delta
 		}
+		return newMetric, nil
 	}
 	return newMetric, err
 }
