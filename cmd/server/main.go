@@ -51,7 +51,8 @@ func main() {
 			}
 		}()
 
-		if err = app.Stop(shutdownCtx); err != nil {
+		// специально переобъявляем эту переменную, что избежать возможного data race с такой же переменной с основной функции
+		if err := app.Stop(shutdownCtx); err != nil {
 			logger.Fatalf("Shutdown error: %v", err)
 		}
 
