@@ -7,7 +7,31 @@ import (
 	"math/rand"
 	"runtime"
 	"slices"
+	"sync"
 )
+
+type PollCounter struct {
+	value int64
+	mu    sync.Mutex
+}
+
+func (pc *PollCounter) Inc() {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	pc.value++
+}
+
+func (pc *PollCounter) Get() int64 {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	return pc.value
+}
+
+func (pc *PollCounter) Reset() {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	pc.value = 0
+}
 
 func GetSystemMetrics() map[string]interface{} {
 	m := &runtime.MemStats{}
@@ -36,17 +60,17 @@ func RemoveUnnecessaryMetrics(m map[string]interface{}, r []string) ([]models.Me
 	return resultMetrics, nil
 }
 
-func GenerateCustomMetrics(p *models.Metric, r *models.Metric, c *int64) {
-	*c += int64(1)
+func GenerateCustomMetrics(counter int64) (models.Metric, models.Metric) {
 	rnd := rand.Float64()
-	*p = models.Metric{
+	pollCountMetric := models.Metric{
 		ID:    "PollCount",
 		MType: "counter",
-		Delta: c,
+		Delta: &counter,
 	}
-	*r = models.Metric{
+	randomValueMetric := models.Metric{
 		ID:    "RandomValue",
 		MType: "gauge",
 		Value: &rnd,
 	}
+	return pollCountMetric, randomValueMetric
 }

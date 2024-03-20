@@ -21,7 +21,7 @@ type App struct {
 	Config                 *config.Config
 	RuntimeRequiredMetrics []string
 	ReadyMetrics           chan []models.Metric
-	PollCounter            int64
+	PollCounter            metrics.PollCounter
 	ReportTicker           *time.Ticker
 }
 
@@ -40,7 +40,7 @@ func NewApp(client *http.Client, logger *zap.SugaredLogger, config *config.Confi
 		Config:                 config,
 		RuntimeRequiredMetrics: runtimeRequiredMetrics,
 		ReadyMetrics:           make(chan []models.Metric, 1),
-		PollCounter:            0,
+		PollCounter:            metrics.PollCounter{},
 		ReportTicker:           time.NewTicker(config.ReportInterval),
 	}, nil
 }
@@ -75,6 +75,10 @@ func (a *App) WaitMetrics(ctx context.Context) {
 				a.Logger.Errorf("Can not send metrics: %s", err)
 				continue
 			}
+
+			// обнуляем счетчик PollCounter после успешной отправки метрик
+			a.PollCounter.Reset()
+
 			a.Logger.Debugf("Metrics have been sent successfully")
 
 		case <-ctx.Done():
@@ -86,8 +90,6 @@ func (a *App) WaitMetrics(ctx context.Context) {
 }
 
 func (a *App) GetMetrics(ctx context.Context) {
-	pollCounter := int64(0)
-	var pollCountMetric, randomValueMetric models.Metric
 	for {
 		systemMetrics := metrics.GetSystemMetrics()
 		resultMetrics, err := metrics.RemoveUnnecessaryMetrics(systemMetrics, a.RuntimeRequiredMetrics)
@@ -96,8 +98,11 @@ func (a *App) GetMetrics(ctx context.Context) {
 			continue
 		}
 
-		metrics.GenerateCustomMetrics(&pollCountMetric, &randomValueMetric, &pollCounter)
+		a.PollCounter.Inc()
+
+		pollCountMetric, randomValueMetric := metrics.GenerateCustomMetrics(a.PollCounter.Get())
 		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)
+
 		select {
 		case <-ctx.Done():
 			a.Logger.Infof("Stopping receiving metrics")

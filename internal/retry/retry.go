@@ -34,12 +34,17 @@ func (w *Retry) Do(ctx context.Context) error {
 		return err
 	}
 	for i := 1; i <= w.RetryAttempts; i++ {
-		sleepTime := time.Duration(i)*w.SleepStep - 1
-		w.Logger.Errorf("Retrying in %d seconds", sleepTime)
-		time.Sleep(time.Duration(sleepTime) * time.Second)
-		err = w.Worker(ctx)
-		if err == nil {
-			return nil
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			sleepTime := time.Duration(i)*w.SleepStep - 1
+			w.Logger.Errorf("Retrying in %d seconds", sleepTime)
+			time.Sleep(sleepTime * time.Second)
+			err = w.Worker(ctx)
+			if err == nil {
+				return nil
+			}
 		}
 	}
 	return fmt.Errorf("retry quota exceeded (last origin error: %w)", err)

@@ -36,23 +36,27 @@ func Test_GenerateCustomMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var pollMetric, randMetric models.Metric
-			var counter int64
+			var counter int64 = 1
 			want1, err := models.NewMetric(tt.want1.Name, tt.want1.Type, tt.want1.Value)
 			require.NoError(t, err)
 
 			want2, err := models.NewMetric(tt.want2.Name, tt.want2.Type, tt.want2.Value)
 			require.NoError(t, err)
 
-			GenerateCustomMetrics(&pollMetric, &randMetric, &counter)
+			pollMetric, randMetric := GenerateCustomMetrics(counter)
 			if !reflect.DeepEqual(want1, pollMetric) {
 				t.Error("RuntimeRequiredMetrics are not equals")
 			}
+
 			assert.Equal(t, want2.ID, randMetric.ID)
 			assert.Equal(t, want2.MType, randMetric.MType)
+
 			oldRandValue := randMetric.Value
 			requiredNewValue := *pollMetric.Delta + 1
-			GenerateCustomMetrics(&pollMetric, &randMetric, &counter)
+
+			counter++
+
+			pollMetric, randMetric = GenerateCustomMetrics(counter)
 			assert.Equal(t, requiredNewValue, *pollMetric.Delta, "Value of the PollCount metric "+
 				"should be incremented to 1")
 			assert.NotEqualf(t, oldRandValue, randMetric.Value, "Value of the RandomValue metric "+
