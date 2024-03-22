@@ -47,7 +47,7 @@ func (a *App) Start(ctx context.Context) error {
 }
 
 func (a *App) Stop(ctx context.Context) error {
-	a.logger.Infof("Closing web server")
+	a.logger.Info("Closing web server")
 	err := a.server.Shutdown(ctx)
 	if err != nil {
 		return err
@@ -58,13 +58,13 @@ func (a *App) Stop(ctx context.Context) error {
 			return err
 		}
 	}
-	a.logger.Infof("Closing storage")
+	a.logger.Info("Closing storage")
 	err = a.storage.Close()
 	if err != nil {
 		return err
 	}
 
-	a.logger.Infof("Shutdown completed")
+	a.logger.Info("Shutdown completed")
 	return nil
 }
 
@@ -79,7 +79,7 @@ func NewApp(config *config.Config) (*App, error) {
 	logger.Infof("Starting %v storage initialization", config.Storage)
 	synchronousFlush := false
 	if config.Metrics.StoreInterval == 0 {
-		logger.Infof("Synchronous flushing is enabled")
+		logger.Info("Synchronous flushing is enabled")
 		synchronousFlush = true
 	}
 
@@ -100,15 +100,15 @@ func NewApp(config *config.Config) (*App, error) {
 			return nil, fmt.Errorf("can not init postgresStorage: %v", err)
 		}
 
-		logger.Infof("Checking postgres connection")
+		logger.Info("Checking postgres connection")
 		err = pgs.Status(context.TODO())
 		if err != nil {
 			logger.Errorf("Postgres connection is not OK: %v", err)
 			return nil, err
 		}
-		logger.Infof("Postgres connection is OK")
+		logger.Info("Postgres connection is OK")
 
-		logger.Infof("Starting database migrations")
+		logger.Info("Starting database migrations")
 		migrator := postgres.NewMigrator(pgs.Conn, config, logger)
 		migrator.Run()
 		if migrator.Err() != nil {
@@ -154,7 +154,7 @@ func (a *App) BackgroundFlusher(ctx context.Context) {
 				continue
 			}
 		case <-ctx.Done():
-			a.logger.Infof("BackgroundFlusher stopped")
+			a.logger.Info("BackgroundFlusher stopped")
 			return
 		}
 	}

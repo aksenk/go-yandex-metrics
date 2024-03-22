@@ -105,7 +105,7 @@ func (a *App) GetMetrics(ctx context.Context) {
 
 		select {
 		case <-ctx.Done():
-			a.Logger.Infof("Stopping receiving metrics")
+			a.Logger.Info("Stopping receiving metrics")
 			return
 		// если канал пуст - помещаем туда данные
 		case a.ReadyMetrics <- resultMetrics:
@@ -169,7 +169,7 @@ func (a *App) sendBatchMetrics(metrics []models.Metric) (statusCode int, err err
 			return res.StatusCode, fmt.Errorf("%w: %v, response: %v", errStatusCode, res.StatusCode, string(resBody))
 		}
 
-		a.Logger.Debugf("Batch sended")
+		a.Logger.Debug("Batch sended")
 	}
 	return http.StatusOK, nil
 }

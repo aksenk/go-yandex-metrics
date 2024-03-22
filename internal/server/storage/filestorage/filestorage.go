@@ -102,7 +102,7 @@ func (f *FileStorage) StartupRestore(ctx context.Context) error {
 
 func (f *FileStorage) FlushMetrics() error {
 	counter := 0
-	f.Logger.Debugf("Start collecting metrics for flushing to the file")
+	f.Logger.Debug("Start collecting metrics for flushing to the file")
 	for _, v := range f.Metrics {
 		jsonMetric, err := json.Marshal(v)
 		if err != nil {
@@ -130,7 +130,7 @@ func (f *FileStorage) FlushMetrics() error {
 		return err
 	}
 	f.FileLock.Unlock()
-	f.Logger.Infof("Metrics successfully saved")
+	f.Logger.Info("Metrics successfully saved")
 	return nil
 }
 

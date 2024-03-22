@@ -37,7 +37,7 @@ func main() {
 	go func() {
 		signal := <-exitSignal
 		log.Infof("Received signal %v", signal)
-		log.Infof("Starting gracefull shutdown")
+		log.Info("Starting gracefully shutdown")
 
 		shutdownCtx, shutdownCancelCtx := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancelCtx()
@@ -45,8 +45,7 @@ func main() {
 		go func() {
 			<-shutdownCtx.Done()
 			if errors.Is(shutdownCtx.Err(), context.DeadlineExceeded) {
-				log.Fatalf("Gracefull shutdown timeout exceeded, force shutdown")
-				os.Exit(1)
+				log.Fatal("Gracefull shutdown timeout exceeded, force shutdown")
 			}
 		}()
 
@@ -61,5 +60,5 @@ func main() {
 	agent.Run(mainCtx)
 
 	<-mainCtx.Done()
-	log.Infof("Shutdown completed")
+	log.Info("Shutdown completed")
 }

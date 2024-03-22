@@ -37,7 +37,7 @@ func main() {
 	go func() {
 		signal := <-signals
 		logger.Infof("Received %v signal", signal)
-		logger.Infof("Starting graceful shutdown")
+		logger.Info("Starting graceful shutdown")
 
 		// контекст для graceful shutdown
 		shutdownCtx, cancel := context.WithTimeout(mainCtx, 10*time.Second)
@@ -47,7 +47,7 @@ func main() {
 		go func() {
 			<-shutdownCtx.Done()
 			if errors.Is(shutdownCtx.Err(), context.DeadlineExceeded) {
-				logger.Fatalf("Graceful shutdown timeout. Forcing exit")
+				logger.Fatal("Graceful shutdown timeout. Forcing exit")
 			}
 		}()
 

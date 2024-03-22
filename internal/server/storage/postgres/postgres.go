@@ -134,19 +134,10 @@ func (p *PostgresStorage) GetMetric(ctx context.Context, metricName string) (*mo
 			var netErr net.Error
 			// возвращаем ошибку (для выполнения ретрая) только при сетевых ошибках
 			if errors.As(err, &netErr) {
-				p.Logger.Fatalf("Connection error: %s", err)
+				p.Logger.Errorf("Connection error: %s", err)
 				return err
 			}
-			//if pgerrcode.IsConnectionException(err.Error()) {
-			//	p.Logger.Fatalf("Connection error: %s", err)
-			//	return err
-			//}
-			// в остальных случаях ретрай не делаем
 			return nil
-			//if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNABORTED) {
-			//	p.Logger.Fatalf("Connection error: %s", err)
-			//	return err
-			//}
 		}
 		return nil
 	})
@@ -199,6 +190,6 @@ func (p *PostgresStorage) Status(ctx context.Context) error {
 }
 
 func (p *PostgresStorage) Close() error {
-	p.Logger.Debugf("Closing postgres connection")
+	p.Logger.Debug("Closing postgres connection")
 	return p.Conn.Close()
 }
