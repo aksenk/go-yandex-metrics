@@ -39,6 +39,9 @@ func (a *App) Start(ctx context.Context) error {
 	}
 
 	a.logger.Infof("Starting web server on %v", a.config.Server.ListenAddr)
+	if a.config.CryptConfig.Key != "" {
+		a.logger.Info("Request signing is enabled")
+	}
 	err := a.server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
