@@ -150,7 +150,7 @@ func TestUpdateMetric(t *testing.T) {
 	for _, tt := range tests {
 		storage := &MemStorageDummy{}
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewRouter(storage, log)
+			handler := NewRouter(storage, log, "")
 			server := httptest.NewServer(handler)
 			request, err := http.NewRequest(tt.args.method, server.URL+tt.args.path, nil)
 			require.NoError(t, err)
@@ -280,7 +280,7 @@ func TestGetMetric(t *testing.T) {
 			storage := &memstorage.MemStorage{
 				Metrics: storageMetrics,
 			}
-			server := httptest.NewServer(NewRouter(storage, log))
+			server := httptest.NewServer(NewRouter(storage, log, ""))
 			response, err := server.Client().Get(server.URL + tt.requestURL)
 			require.NoError(t, err)
 			body, err := io.ReadAll(response.Body)
