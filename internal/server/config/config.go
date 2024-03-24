@@ -4,40 +4,67 @@ import (
 	"flag"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"os"
 	"strconv"
 )
 
 type Config struct {
-	Storage     string
-	Server      serverConfig
-	Metrics     metricsConfig
-	FileStorage fileStorageConfig
+	Storage         storage.SType
+	LogLevel        string
+	Server          ServerConfig
+	Metrics         MetricsConfig
+	FileStorage     FileStorageConfig
+	PostgresStorage PostgresConfig
+	RetryConfig     RetryConfig
 }
 
-type serverConfig struct {
+type RetryConfig struct {
+	RetryAttempts int
+	RetryWaitTime int
+}
+
+type ServerConfig struct {
 	ListenAddr string
 }
 
-type metricsConfig struct {
+type MetricsConfig struct {
 	StoreInterval  int
 	StartupRestore bool
 }
 
-type fileStorageConfig struct {
+type FileStorageConfig struct {
 	FileName string
 }
 
+type PostgresConfig struct {
+	DSN           string
+	Type          string
+	MigrationsDir string
+}
+
 func GetConfig() (*Config, error) {
-	log := logger.Log
-	storage := flag.String("s", "file", "Storage type")
+	log, err := logger.NewLogger("info")
+	if err != nil {
+		return nil, err
+	}
+	logLevel := flag.String("l", "info", "Logger level")
 	serverListenAddr := flag.String("a", "localhost:8080", "host:port for server listening")
-	metricsStoreInterval := flag.Int("i", 300, "Period in seconds between flushing metrics to the disk")
-	fileStorageFileName := flag.String("f", "/tmp/metrics-db.json", "Path to the file for storing metrics")
-	fileStorageStartupRestore := flag.Bool("r", true, "Restoring metrics from the file at startup")
+	metricsStoreInterval := flag.Int("i", 300, "Period in seconds between flushing metrics to the disk (file storage)")
+	fileStorageFileName := flag.String("f", "", "Path to the file for storing metrics (file storage)")
+	fileStorageStartupRestore := flag.Bool("r", true, "Restoring metrics from the file at startup (file storage)")
+	databaseDSN := flag.String("d", "", "Postgres connection DSN string (database storage)")
+	retryAttempts := 3
+	retryWaitTime := 2
+	migrationsDir := "./migrations/postgres"
+
 	flag.Parse()
-	if e := os.Getenv("STORAGE"); e != "" {
-		storage = &e
+
+	if e := os.Getenv("LOG_LEVEL"); e != "" {
+		logLevel = &e
+	}
+	if e := os.Getenv("DATABASE_DSN"); e != "" {
+		databaseDSN = &e
 	}
 	if e := os.Getenv("ADDRESS"); e != "" {
 		serverListenAddr = &e
@@ -64,17 +91,33 @@ func GetConfig() (*Config, error) {
 		}
 		fileStorageStartupRestore = &v
 	}
+	s := storage.MemoryStorage
+	if databaseDSN != nil && *databaseDSN != "" {
+		s = storage.PostgresStorage
+	} else if fileStorageFileName != nil && *fileStorageFileName != "" {
+		s = storage.FileStorage
+	}
 	return &Config{
-		Storage: *storage,
-		Server: serverConfig{
+		Storage:  s,
+		LogLevel: *logLevel,
+		Server: ServerConfig{
 			ListenAddr: *serverListenAddr,
 		},
-		Metrics: metricsConfig{
+		Metrics: MetricsConfig{
 			StoreInterval:  *metricsStoreInterval,
 			StartupRestore: *fileStorageStartupRestore,
 		},
-		FileStorage: fileStorageConfig{
+		FileStorage: FileStorageConfig{
 			FileName: *fileStorageFileName,
+		},
+		PostgresStorage: PostgresConfig{
+			DSN:           *databaseDSN,
+			Type:          "postgres",
+			MigrationsDir: migrationsDir,
+		},
+		RetryConfig: RetryConfig{
+			RetryAttempts: retryAttempts,
+			RetryWaitTime: retryWaitTime,
 		},
 	}, nil
 }

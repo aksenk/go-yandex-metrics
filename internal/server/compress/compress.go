@@ -54,7 +54,7 @@ func Middleware(next http.Handler) http.Handler {
 				}
 			}
 			if isAllowedContentType {
-				log.Debugf("The client requested compressed data. The response will be gzipped")
+				log.Debug("The client requested compressed data. The response will be gzipped")
 				// TODO отказаться от gzip.NewWriterLevel() и использовать метод gzip.Reset()
 				gzw, _ := gzip.NewWriterLevel(writer, gzip.BestSpeed)
 				defer gzw.Close()

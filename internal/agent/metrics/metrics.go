@@ -2,32 +2,52 @@ package metrics
 
 import (
 	"github.com/aksenk/go-yandex-metrics/internal/converter"
-	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/fatih/structs"
 	"math/rand"
 	"runtime"
 	"slices"
-	"time"
+	"sync"
 )
 
-func getSystemMetrics() map[string]interface{} {
+type PollCounter struct {
+	value int64
+	mu    sync.Mutex
+}
+
+func (pc *PollCounter) Inc() {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	pc.value++
+}
+
+func (pc *PollCounter) Get() int64 {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	return pc.value
+}
+
+func (pc *PollCounter) Reset() {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	pc.value = 0
+}
+
+func GetSystemMetrics() map[string]interface{} {
 	m := &runtime.MemStats{}
 	runtime.ReadMemStats(m)
 	// возвращаем преобразованный *Mem.Stats в map
 	return structs.Map(m)
 }
 
-func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Metric {
-	log := logger.Log
+func RemoveUnnecessaryMetrics(m map[string]interface{}, r []string) ([]models.Metric, error) {
 	var resultMetrics []models.Metric
 	for k, v := range m {
 		var t models.Metric
 		if contains := slices.Contains(r, k); contains {
 			float64Value, err := converter.AnyToFloat64(v)
 			if err != nil {
-				log.Errorf("error: %s", err)
-				continue
+				return nil, err
 			}
 			t = models.Metric{
 				ID:    k,
@@ -37,43 +57,20 @@ func getRequiredSystemMetrics(m map[string]interface{}, r []string) []models.Met
 			resultMetrics = append(resultMetrics, t)
 		}
 	}
-	return resultMetrics
+	return resultMetrics, nil
 }
 
-func generateCustomMetrics(p *models.Metric, r *models.Metric, c *int64) {
-	*c += int64(1)
+func GenerateCustomMetrics(counter int64) (models.Metric, models.Metric) {
 	rnd := rand.Float64()
-	*p = models.Metric{
+	pollCountMetric := models.Metric{
 		ID:    "PollCount",
 		MType: "counter",
-		Delta: c,
+		Delta: &counter,
 	}
-	*r = models.Metric{
+	randomValueMetric := models.Metric{
 		ID:    "RandomValue",
 		MType: "gauge",
 		Value: &rnd,
 	}
-}
-
-func GetMetrics(c chan []models.Metric, s time.Duration, runtimeRequiredMetrics []string) {
-	pollCounter := int64(0)
-	var pollCountMetric, randomValueMetric models.Metric
-	for {
-		systemMetrics := getSystemMetrics()
-		resultMetrics := getRequiredSystemMetrics(systemMetrics, runtimeRequiredMetrics)
-
-		generateCustomMetrics(&pollCountMetric, &randomValueMetric, &pollCounter)
-		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)
-		select {
-		// если канал пуст - помещаем туда данные
-		case c <- resultMetrics:
-		// если в канале уже есть данные
-		default:
-			// вычитываем их
-			<-c
-			// помещаем туда новые данные
-			c <- resultMetrics
-		}
-		time.Sleep(s)
-	}
+	return pollCountMetric, randomValueMetric
 }

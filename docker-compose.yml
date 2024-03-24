@@ -1,0 +1,12 @@
+version: "3"
+services:
+  db:
+    image: postgres:15-alpine
+    command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr"]
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: go_yandex_metrics
+    volumes:
+      - pgdata:/var/lib/postgresql/data

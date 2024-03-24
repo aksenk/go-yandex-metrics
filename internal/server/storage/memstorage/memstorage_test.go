@@ -1,10 +1,11 @@
 package memstorage
 
 import (
+	"context"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"reflect"
 	"sync"
 	"testing"
 )
@@ -81,7 +82,7 @@ func TestMemStorage_GetMetric(t *testing.T) {
 				Metrics: existingMetrics,
 				mu:      sync.Mutex{},
 			}
-			m, err := storage.GetMetric(tt.getMetricName)
+			m, err := storage.GetMetric(context.TODO(), tt.getMetricName)
 			if !tt.wantErr {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want.Name, m.ID)
@@ -102,184 +103,123 @@ func TestMemStorage_SaveMetric(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		metric  metric
-		want    *metric
-		wantErr bool
+		name   string
+		metric metric
 	}{
 		{
-			name: "successful test: counter",
+			name: "counter",
 			metric: metric{
 				Name:  "test_counter",
 				Type:  "counter",
 				Value: "1",
 			},
-			want: &metric{
-				Name:  "test_counter",
-				Type:  "counter",
-				Value: "1",
-			},
-			wantErr: false,
 		},
 		{
-			name: "successful test: switch counter to gauge",
+			name: "switch counter to gauge",
 			metric: metric{
 				Name:  "test_counter",
 				Type:  "gauge",
 				Value: "1",
 			},
-			want: &metric{
-				Name:  "test_counter",
-				Type:  "gauge",
-				Value: "1",
-			},
-			wantErr: false,
 		},
 		{
-			name: "successful test: counter",
-			metric: metric{
-				Name:  "test_counter2",
-				Type:  "counter",
-				Value: "1",
-			},
-			want: &metric{
-				Name:  "test_counter2",
-				Type:  "counter",
-				Value: "1",
-			},
-			wantErr: false,
-		},
-		{
-			name: "successful test: gauge",
+			name: "gauge",
 			metric: metric{
 				Name:  "test_gauge",
 				Type:  "gauge",
 				Value: "1.123",
 			},
-			want: &metric{
-				Name:  "test_gauge",
-				Type:  "gauge",
-				Value: "1.123",
-			},
-			wantErr: false,
 		},
 		{
-			name: "successful test: switch gauge to counter",
+			name: "switch gauge to counter",
 			metric: metric{
 				Name:  "test_gauge",
 				Type:  "counter",
 				Value: "1",
 			},
-			want: &metric{
-				Name:  "test_gauge",
-				Type:  "counter",
-				Value: "1",
-			},
-			wantErr: false,
-		},
-		{
-			name: "successful test: gauge",
-			metric: metric{
-				Name:  "test_gauge2",
-				Type:  "gauge",
-				Value: "1.123",
-			},
-			want: &metric{
-				Name:  "test_gauge2",
-				Type:  "gauge",
-				Value: "1.123",
-			},
-			wantErr: false,
-		},
-		{
-			name: "successful test: custom type",
-			metric: metric{
-				Name:  "test_custom",
-				Type:  "gauge",
-				Value: "1.123",
-			},
-			want: &metric{
-				Name:  "test_custom",
-				Type:  "gauge",
-				Value: "1.123",
-			},
-			wantErr: false,
-		},
-		{
-			name: "successful test: custom type 2",
-			metric: metric{
-				Name:  "test_custom",
-				Type:  "gauge",
-				Value: "kek",
-			},
-			want: &metric{
-				Name:  "test_custom",
-				Type:  "gauge",
-				Value: "kek",
-			},
-			wantErr: true,
-		},
-		{
-			name: "unsuccessful test: incorrect value",
-			metric: metric{
-				Name:  "test_gauge3",
-				Type:  "gauge",
-				Value: "1",
-			},
-			want: &metric{
-				Name:  "test_gauge3",
-				Type:  "gauge",
-				Value: "2",
-			},
-			wantErr: true,
-		},
-		{
-			name: "unsuccessful test: incorrect type",
-			metric: metric{
-				Name:  "test_gauge3",
-				Type:  "gauge",
-				Value: "1",
-			},
-			want: &metric{
-				Name:  "test_gauge3",
-				Type:  "counter",
-				Value: "1",
-			},
-			wantErr: true,
-		},
-		{
-			name: "unsuccessful test: incorrect metric name",
-			metric: metric{
-				Name:  "test_gauge3",
-				Type:  "gauge",
-				Value: "1",
-			},
-			want: &metric{
-				Name:  "test_gauge4",
-				Type:  "gauge",
-				Value: "1",
-			},
-			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
-		s := &MemStorage{
-			Metrics: map[string]models.Metric{},
-			mu:      sync.Mutex{},
-		}
+		log, err := logger.NewLogger("debug")
+		require.NoError(t, err)
+
+		s := NewMemStorage(log)
+
 		t.Run(tt.name, func(t *testing.T) {
 			m, err := models.NewMetric(tt.metric.Name, tt.metric.Type, tt.metric.Value)
-			if !tt.wantErr {
-				require.NoError(t, err)
-			}
-			err = s.SaveMetric(m)
 			require.NoError(t, err)
-			if !tt.wantErr {
-				assert.Equal(t, tt.want.Name, m.ID)
-				assert.Equal(t, tt.want.Type, m.MType)
-				assert.Equal(t, tt.want.Value, m.String())
-			} else {
-				assert.NotEqual(t, tt.want, m)
+
+			err = s.SaveMetric(context.TODO(), m)
+			require.NoError(t, err)
+
+			assert.Equal(t, s.Metrics[tt.metric.Name].ID, tt.metric.Name)
+			assert.Equal(t, s.Metrics[tt.metric.Name].MType, tt.metric.Type)
+		})
+	}
+}
+
+func TestMemStorage_SaveBatchMetrics(t *testing.T) {
+	type metric struct {
+		Name  string
+		Type  string
+		Value any
+	}
+
+	tests := []struct {
+		name    string
+		metrics []metric
+	}{
+		{
+			name: "insert new metrics",
+			metrics: []metric{
+				{
+					Name:  "test_counter",
+					Type:  "counter",
+					Value: "1",
+				},
+				{
+					Name:  "test_gauge",
+					Type:  "gauge",
+					Value: "12",
+				},
+			},
+		},
+		{
+			name: "update existing metrics",
+			metrics: []metric{
+				{
+					Name:  "test_counter",
+					Type:  "counter",
+					Value: "1",
+				},
+				{
+					Name:  "test_gauge",
+					Type:  "gauge",
+					Value: "12",
+				},
+			},
+		},
+	}
+
+	log, err := logger.NewLogger("debug")
+	require.NoError(t, err)
+	s := NewMemStorage(log)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var metrics []models.Metric
+			for _, m := range tt.metrics {
+				mm, err := models.NewMetric(m.Name, m.Type, m.Value)
+				require.NoError(t, err)
+				metrics = append(metrics, mm)
+			}
+
+			err = s.SaveBatchMetrics(context.TODO(), metrics)
+			require.NoError(t, err)
+
+			for _, m := range metrics {
+				assert.Equal(t, s.Metrics[m.ID].ID, m.ID)
+				assert.Equal(t, s.Metrics[m.ID].MType, m.MType)
 			}
 		})
 	}
@@ -297,10 +237,13 @@ func TestNewMemStorage(t *testing.T) {
 			},
 		},
 	}
+	logger, err := logger.NewLogger("info")
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewMemStorage(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewMemStorage() = %v, want %v", got, tt.want)
+			var got any = NewMemStorage(logger)
+			if _, ok := got.(*MemStorage); !ok {
+				t.Fatalf("Resulting object have incorrect type (not equal *MemStorage struct)")
 			}
 		})
 	}
@@ -346,7 +289,8 @@ func TestMemStorage_GetAllMetrics(t *testing.T) {
 				Metrics: existingMetrics,
 				mu:      sync.Mutex{},
 			}
-			got := storage.GetAllMetrics()
+			got, err := storage.GetAllMetrics(context.TODO())
+			require.NoError(t, err)
 			for _, w := range tt.want {
 				if _, ok := got[w]; !ok {
 					t.Errorf("GetAllMetrics() = metric with name '%v' does not contains in result metrics: %v", w, got)

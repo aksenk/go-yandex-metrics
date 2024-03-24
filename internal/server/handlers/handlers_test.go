@@ -1,13 +1,20 @@
 package handlers
 
 import (
+	"context"
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
+	"github.com/aksenk/go-yandex-metrics/internal/server/config"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage/filestorage"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage/memstorage"
+	"github.com/aksenk/go-yandex-metrics/internal/server/storage/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 )
 
@@ -15,23 +22,34 @@ type MemStorageDummy struct {
 	Dummy string
 }
 
-func (m *MemStorageDummy) SaveMetric(metric models.Metric) error {
+func (m *MemStorageDummy) SaveMetric(ctx context.Context, metric models.Metric) error {
 	return nil
 }
 
-func (m *MemStorageDummy) GetMetric(name string) (*models.Metric, error) {
+func (m *MemStorageDummy) SaveBatchMetrics(ctx context.Context, metrics []models.Metric) error {
+	return nil
+}
+func (m *MemStorageDummy) GetMetric(ctx context.Context, name string) (*models.Metric, error) {
 	return &models.Metric{}, nil
 }
 
-func (m *MemStorageDummy) GetAllMetrics() map[string]models.Metric {
-	return make(map[string]models.Metric)
+func (m *MemStorageDummy) GetAllMetrics(ctx context.Context) (map[string]models.Metric, error) {
+	return make(map[string]models.Metric), nil
 }
 
 func (m *MemStorageDummy) FlushMetrics() error {
 	return nil
 }
 
-func (m *MemStorageDummy) StartupRestore() error {
+func (m *MemStorageDummy) StartupRestore(ctx context.Context) error {
+	return nil
+}
+
+func (m *MemStorageDummy) Close() error {
+	return nil
+}
+
+func (m *MemStorageDummy) Status(ctx context.Context) error {
 	return nil
 }
 
@@ -126,10 +144,13 @@ func TestUpdateMetric(t *testing.T) {
 			},
 		},
 	}
+	log, err := logger.NewLogger("debug")
+	require.NoError(t, err)
+
 	for _, tt := range tests {
 		storage := &MemStorageDummy{}
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewRouter(storage)
+			handler := NewRouter(storage, log)
 			server := httptest.NewServer(handler)
 			request, err := http.NewRequest(tt.args.method, server.URL+tt.args.path, nil)
 			require.NoError(t, err)
@@ -244,6 +265,10 @@ func TestGetMetric(t *testing.T) {
 			wantBody:       "Error receiving metric: metric not found\n",
 		},
 	}
+
+	log, err := logger.NewLogger("debug")
+	require.NoError(t, err)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			storageMetrics := make(map[string]models.Metric)
@@ -255,7 +280,7 @@ func TestGetMetric(t *testing.T) {
 			storage := &memstorage.MemStorage{
 				Metrics: storageMetrics,
 			}
-			server := httptest.NewServer(NewRouter(storage))
+			server := httptest.NewServer(NewRouter(storage, log))
 			response, err := server.Client().Get(server.URL + tt.requestURL)
 			require.NoError(t, err)
 			body, err := io.ReadAll(response.Body)
@@ -342,4 +367,71 @@ func TestListAllMetrics(t *testing.T) {
 			assert.Equal(t, tt.wantBody, stringBody)
 		})
 	}
+}
+
+func TestPing(t *testing.T) {
+	logger, err := logger.NewLogger("info")
+	require.NoError(t, err)
+	t.Run("with file storage", func(t *testing.T) {
+		fileName := "test_db.json"
+		storage, err := filestorage.NewFileStorage(fileName, false, logger)
+		require.NoError(t, err)
+		defer os.RemoveAll(fileName)
+
+		server := httptest.NewServer(Ping(storage))
+		response, err := server.Client().Get(server.URL + "/ping")
+		require.NoError(t, err)
+		defer response.Body.Close()
+
+		assert.Equal(t, 200, response.StatusCode)
+	})
+
+	t.Run("with working postgres storage", func(t *testing.T) {
+		db, _, err := sqlmock.New()
+		require.NoError(t, err)
+
+		require.NoError(t, err)
+
+		cfg := config.Config{
+			Storage: "postgres",
+			PostgresStorage: config.PostgresConfig{
+				DSN:  "postgres://postgres:password@localhost:5431/db",
+				Type: "postgres",
+			},
+		}
+		storage, err := postgres.NewPostgresStorage(&cfg, logger)
+		require.NoError(t, err)
+
+		storage.Conn = db
+		storage.Logger = logger
+
+		server := httptest.NewServer(Ping(storage))
+		response, err := server.Client().Get(server.URL + "/ping")
+		require.NoError(t, err)
+		defer response.Body.Close()
+
+		assert.Equal(t, 200, response.StatusCode)
+	})
+
+	t.Run("with unavailable postgres storage", func(t *testing.T) {
+		require.NoError(t, err)
+
+		cfg := config.Config{
+			Storage: "postgres",
+			PostgresStorage: config.PostgresConfig{
+				DSN:  "postgres://postgres:password@localhost:5431/db",
+				Type: "postgres",
+			},
+		}
+		storage, err := postgres.NewPostgresStorage(&cfg, logger)
+		require.NoError(t, err)
+
+		server := httptest.NewServer(Ping(storage))
+		response, err := server.Client().Get(server.URL + "/ping")
+		require.NoError(t, err)
+		defer response.Body.Close()
+
+		// сервер не сможет достучаться до postgres и должен отдать статус 500
+		assert.Equal(t, 500, response.StatusCode)
+	})
 }

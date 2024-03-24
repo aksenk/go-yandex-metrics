@@ -1,0 +1,9 @@
+CREATE SCHEMA server;
+
+CREATE TABLE server.metrics (
+    id SERIAL NOT NULL PRIMARY KEY,
+    name VARCHAR(256) NOT NULL UNIQUE,
+    type VARCHAR(256) NOT NULL,
+    value DOUBLE PRECISION,
+    delta BIGINT
+);
