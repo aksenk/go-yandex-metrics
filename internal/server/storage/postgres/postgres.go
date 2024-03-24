@@ -91,20 +91,20 @@ func NewPostgresStorage(cfg *config.Config, log *zap.SugaredLogger) (*PostgresSt
 }
 
 func (p *PostgresStorage) SaveMetric(ctx context.Context, metric models.Metric) error {
-	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) error {
+	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) (bool, error) {
 		_, err := p.Conn.ExecContext(ctx, "INSERT INTO server.metrics (name, type, value, delta) "+
 			"VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO UPDATE SET type=$2, value=$3, delta=$4",
 			metric.ID, metric.MType, metric.Value, metric.Delta)
-		return err
+		return false, err
 	})
 	return retryer.Do(ctx)
 }
 
 func (p *PostgresStorage) SaveBatchMetrics(ctx context.Context, metrics []models.Metric) error {
-	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) error {
+	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) (bool, error) {
 		tx, err := p.Conn.BeginTx(ctx, nil)
 		if err != nil {
-			return err
+			return false, err
 		}
 		defer tx.Rollback()
 		for _, metric := range metrics {
@@ -112,22 +112,22 @@ func (p *PostgresStorage) SaveBatchMetrics(ctx context.Context, metrics []models
 				"VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO UPDATE SET type=$2, value=$3, delta=$4",
 				metric.ID, metric.MType, metric.Value, metric.Delta)
 			if err != nil {
-				return err
+				return false, err
 			}
 		}
-		return tx.Commit()
+		return false, tx.Commit()
 	})
 	return retryer.Do(ctx)
 }
 
 func (p *PostgresStorage) GetMetric(ctx context.Context, metricName string) (*models.Metric, error) {
 	var metric models.Metric
-	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) error {
+	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) (bool, error) {
 		err := p.Conn.QueryRowContext(ctx, "SELECT name, type, value, delta FROM server.metrics WHERE name = $1",
 			metricName).
 			Scan(&metric.ID, &metric.MType, &metric.Value, &metric.Delta)
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil
+			return true, nil
 		}
 
 		if err != nil {
@@ -135,11 +135,11 @@ func (p *PostgresStorage) GetMetric(ctx context.Context, metricName string) (*mo
 			// возвращаем ошибку (для выполнения ретрая) только при сетевых ошибках
 			if errors.As(err, &netErr) {
 				p.Logger.Errorf("Connection error: %s", err)
-				return err
+				return false, err
 			}
-			return nil
+			return true, nil
 		}
-		return nil
+		return true, nil
 	})
 	return &metric, retryer.Do(ctx)
 }
@@ -148,10 +148,10 @@ func (p *PostgresStorage) GetAllMetrics(ctx context.Context) (map[string]models.
 	allMetrics := make(map[string]models.Metric)
 	var metric models.Metric
 
-	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) error {
+	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) (bool, error) {
 		rows, err := p.Conn.QueryContext(ctx, "SELECT name, type, value, delta FROM server.metrics")
 		if err != nil {
-			return err
+			return false, err
 		}
 		defer rows.Close()
 
@@ -160,9 +160,9 @@ func (p *PostgresStorage) GetAllMetrics(ctx context.Context) (map[string]models.
 			allMetrics[metric.ID] = metric
 		}
 		if err = rows.Err(); err != nil {
-			return err
+			return false, err
 		}
-		return nil
+		return true, nil
 	})
 	return allMetrics, retryer.Do(ctx)
 }
@@ -176,15 +176,15 @@ func (p *PostgresStorage) FlushMetrics() error {
 }
 
 func (p *PostgresStorage) Status(ctx context.Context) error {
-	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) error {
+	retryer := retry.NewRetryer(p.Logger, p.cfg.RetryConfig.RetryAttempts, time.Duration(p.cfg.RetryConfig.RetryWaitTime), func(ctx context.Context) (bool, error) {
 		timeout := 3 * time.Second
 		DBCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		err := p.Conn.PingContext(DBCtx)
 		if err != nil {
-			return err
+			return false, err
 		}
-		return nil
+		return true, nil
 	})
 	return retryer.Do(ctx)
 }

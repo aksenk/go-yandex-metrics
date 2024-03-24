@@ -10,6 +10,7 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/agent/metrics"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/aksenk/go-yandex-metrics/internal/retry"
+	"github.com/aksenk/go-yandex-metrics/internal/signature"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -60,14 +61,18 @@ func (a *App) WaitMetrics(ctx context.Context) {
 		case <-a.ReportTicker.C:
 			resultMetrics := <-a.ReadyMetrics
 
-			withRetry := retry.NewRetryer(a.Logger, a.Config.RetryAttempts, time.Duration(a.Config.RetryWaitTime), func(ctx context.Context) error {
+			withRetry := retry.NewRetryer(a.Logger, a.Config.RetryAttempts, time.Duration(a.Config.RetryWaitTime), func(ctx context.Context) (bool, error) {
 				statusCode, err := a.sendBatchMetrics(resultMetrics)
 				if err != nil {
+
+					if statusCode > 200 && statusCode < 500 {
+						return true, err
+					}
 					if statusCode < 200 || statusCode >= 500 {
-						return err
+						return false, err
 					}
 				}
-				return nil
+				return true, nil
 			})
 
 			err := withRetry.Do(ctx)
@@ -152,6 +157,12 @@ func (a *App) sendBatchMetrics(metrics []models.Metric) (statusCode int, err err
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Encoding", "gzip")
+
+		cryptKey := a.Config.CryptKey
+		if cryptKey != "" {
+			sign := signature.GetSignature(jsonData, cryptKey)
+			req.Header.Set(signature.SignHeader, sign)
+		}
 
 		res, err := a.Client.Do(req)
 		if err != nil {

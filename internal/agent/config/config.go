@@ -19,6 +19,7 @@ type Config struct {
 	RetryWaitTime        int
 	RetryInitialWaitTime int
 	ClientTimeout        int
+	CryptKey             string
 }
 
 func NewConfig() (*Config, error) {
@@ -30,6 +31,8 @@ func NewConfig() (*Config, error) {
 	reportInterval := flag.String("r", "10", "Interval for sending metrics (in seconds)")
 	logLevel := flag.String("l", "debug", "Log level")
 	batchSize := flag.String("b", "50", "Batch size")
+	cryptKey := flag.String("k", "", "Crypt key for signing requests")
+
 	retryAttempts := 3
 	retryWaitTime := 2
 	clientTimeout := 10
@@ -52,6 +55,9 @@ func NewConfig() (*Config, error) {
 	}
 	if e := os.Getenv("BATCH_SIZE"); e != "" {
 		batchSize = &e
+	}
+	if e := os.Getenv("KEY"); e != "" {
+		cryptKey = &e
 	}
 	reportIntervalInt, err := strconv.Atoi(*reportInterval)
 	if err != nil {
@@ -88,5 +94,6 @@ func NewConfig() (*Config, error) {
 		RetryAttempts:  retryAttempts,
 		RetryWaitTime:  retryWaitTime,
 		ClientTimeout:  clientTimeout,
+		CryptKey:       *cryptKey,
 	}, nil
 }

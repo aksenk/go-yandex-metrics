@@ -126,6 +126,7 @@ func Middleware(log *zap.SugaredLogger) func(next http.Handler) http.Handler {
 			log.With("statusCode", lrw.responseData.statusCode,
 				"size", lrw.responseData.size,
 				"duration", duration,
+				"headers", lrw.Header(),
 				"request_id", middleware.GetReqID(r.Context())).
 				Info("Sent response")
 		}

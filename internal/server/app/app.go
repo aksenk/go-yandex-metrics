@@ -39,6 +39,9 @@ func (a *App) Start(ctx context.Context) error {
 	}
 
 	a.logger.Infof("Starting web server on %v", a.config.Server.ListenAddr)
+	if a.config.CryptConfig.Key != "" {
+		a.logger.Info("Request signing is enabled")
+	}
 	err := a.server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
@@ -124,7 +127,7 @@ func NewApp(config *config.Config) (*App, error) {
 		return nil, fmt.Errorf("unknown storage type: %v", config.Storage)
 	}
 
-	router = handlers.NewRouter(s, logger)
+	router = handlers.NewRouter(s, logger, config.CryptConfig.Key)
 	srv := &http.Server{
 		Addr:              config.Server.ListenAddr,
 		Handler:           router,
