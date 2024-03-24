@@ -4,15 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/agent/config"
 	"github.com/aksenk/go-yandex-metrics/internal/agent/metrics"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/aksenk/go-yandex-metrics/internal/retry"
+	"github.com/aksenk/go-yandex-metrics/internal/signature"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -63,14 +61,18 @@ func (a *App) WaitMetrics(ctx context.Context) {
 		case <-a.ReportTicker.C:
 			resultMetrics := <-a.ReadyMetrics
 
-			withRetry := retry.NewRetryer(a.Logger, a.Config.RetryAttempts, time.Duration(a.Config.RetryWaitTime), func(ctx context.Context) error {
+			withRetry := retry.NewRetryer(a.Logger, a.Config.RetryAttempts, time.Duration(a.Config.RetryWaitTime), func(ctx context.Context) (bool, error) {
 				statusCode, err := a.sendBatchMetrics(resultMetrics)
 				if err != nil {
+
+					if statusCode > 200 && statusCode < 500 {
+						return true, err
+					}
 					if statusCode < 200 || statusCode >= 500 {
-						return err
+						return false, err
 					}
 				}
-				return nil
+				return true, nil
 			})
 
 			err := withRetry.Do(ctx)
@@ -158,11 +160,8 @@ func (a *App) sendBatchMetrics(metrics []models.Metric) (statusCode int, err err
 
 		cryptKey := a.Config.CryptKey
 		if cryptKey != "" {
-			h := hmac.New(sha256.New, []byte(cryptKey))
-			h.Write(jsonData)
-			sign := h.Sum(nil)
-			strSign := hex.EncodeToString(sign[:])
-			req.Header.Set("HashSHA256", strSign)
+			sign := signature.GetSignature(jsonData, cryptKey)
+			req.Header.Set(signature.SignHeader, sign)
 		}
 
 		res, err := a.Client.Do(req)
