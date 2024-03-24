@@ -8,6 +8,7 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/logger"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/aksenk/go-yandex-metrics/internal/server/compress"
+	"github.com/aksenk/go-yandex-metrics/internal/server/signature"
 	"github.com/aksenk/go-yandex-metrics/internal/server/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -18,13 +19,16 @@ import (
 	"strings"
 )
 
-func NewRouter(s storage.Storager, log *zap.SugaredLogger) chi.Router {
+func NewRouter(s storage.Storager, log *zap.SugaredLogger, cryptKey string) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(logger.Middleware(log))
 	//r.Use(middleware.Timeout(time.Second * 10))
 	r.Use(compress.Middleware)
+	if cryptKey != "" {
+		r.Use(signature.Middleware(cryptKey, log))
+	}
 	r.Get("/", ListAllMetrics(s))
 	r.Get("/ping", Ping(s))
 	// TODO почему-то в ответе дублируется текст "Allow: POST" например при запросе GET /update/

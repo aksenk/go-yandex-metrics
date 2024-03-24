@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/aksenk/go-yandex-metrics/internal/agent/config"
@@ -152,6 +155,15 @@ func (a *App) sendBatchMetrics(metrics []models.Metric) (statusCode int, err err
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Content-Encoding", "gzip")
+
+		cryptKey := a.Config.CryptKey
+		if cryptKey != "" {
+			h := hmac.New(sha256.New, []byte(cryptKey))
+			h.Write(jsonData)
+			sign := h.Sum(nil)
+			strSign := hex.EncodeToString(sign[:])
+			req.Header.Set("HashSHA256", strSign)
+		}
 
 		res, err := a.Client.Do(req)
 		if err != nil {
