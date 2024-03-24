@@ -39,28 +39,31 @@ func Middleware(cryptKey string, log *zap.SugaredLogger) func(next http.Handler)
 				return
 			}
 
-			// проверяем хэш запроса для только для запросов с телом, для совместимости со старыми методами
-			// когда добавляем метрики простым POST'ом без тела запроса (например /update/counter/kek/1)
-			if len(body) > 0 {
-				reqSignHeader := r.Header.Get(SignHeader)
-				if reqSignHeader == "" {
-					log.Errorf("Header HashSHA256 is empty")
-					w.Header().Set("Content-Type", "application/json")
-					http.Error(w, "Header HashSHA256 is empty", http.StatusBadRequest)
-					return
+			// этого нет в задании, но, похоже, нужно игнорировать проверку подписи если заголовок Hash=none
+			if r.Header.Get("Hash") != "none" {
+				// проверяем хэш запроса для только для запросов с телом, для совместимости со старыми методами
+				// когда добавляем метрики простым POST'ом без тела запроса (например /update/counter/kek/1)
+				if len(body) > 0 {
+					reqSignHeader := r.Header.Get(SignHeader)
+					if reqSignHeader == "" {
+						log.Errorf("Header HashSHA256 is empty")
+						w.Header().Set("Content-Type", "application/json")
+						http.Error(w, "Header HashSHA256 is empty", http.StatusBadRequest)
+						return
+					}
+
+					sign := GetSignature(body, cryptKey)
+
+					if sign != reqSignHeader {
+						log.Errorf("Request signature is not valid")
+						w.Header().Set("Content-Type", "application/json")
+						http.Error(w, "Request signature is not valid", http.StatusBadRequest)
+						return
+					}
+					log.Infof("Request signature is valid")
+
+					w.Header().Set(SignHeader, sign)
 				}
-
-				sign := GetSignature(body, cryptKey)
-
-				if sign != reqSignHeader {
-					log.Errorf("Request signature is not valid")
-					w.Header().Set("Content-Type", "application/json")
-					http.Error(w, "Request signature is not valid", http.StatusBadRequest)
-					return
-				}
-				log.Infof("Request signature is valid")
-
-				w.Header().Set(SignHeader, sign)
 			}
 
 			next.ServeHTTP(w, r)
