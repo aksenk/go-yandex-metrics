@@ -45,6 +45,7 @@ func Middleware(cryptKey string, log *zap.SugaredLogger) func(next http.Handler)
 				reqSignHeader := r.Header.Get(SignHeader)
 				if reqSignHeader == "" {
 					log.Errorf("Header HashSHA256 is empty")
+					w.Header().Set("Content-Type", "application/json")
 					http.Error(w, "Header HashSHA256 is empty", http.StatusBadRequest)
 					return
 				}
@@ -53,6 +54,7 @@ func Middleware(cryptKey string, log *zap.SugaredLogger) func(next http.Handler)
 
 				if sign != reqSignHeader {
 					log.Errorf("Request signature is not valid")
+					w.Header().Set("Content-Type", "application/json")
 					http.Error(w, "Request signature is not valid", http.StatusBadRequest)
 					return
 				}
