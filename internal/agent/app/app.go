@@ -9,7 +9,6 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/agent/config"
 	"github.com/aksenk/go-yandex-metrics/internal/agent/metrics"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
-	"github.com/aksenk/go-yandex-metrics/internal/retry"
 	"github.com/aksenk/go-yandex-metrics/internal/signature"
 	"go.uber.org/zap"
 	"net/http"
@@ -21,8 +20,10 @@ type App struct {
 	Client                 *http.Client
 	Config                 *config.Config
 	RuntimeRequiredMetrics []string
+	PSUtilRequiredMetrics  []string
 	ReadyMetrics           chan []models.Metric
-	PollCounter            metrics.PollCounter
+	PSUtilMetrics          chan []models.Metric
+	PollCounter            *metrics.PollCounter
 	ReportTicker           *time.Ticker
 }
 
@@ -35,94 +36,137 @@ func NewApp(client *http.Client, logger *zap.SugaredLogger, config *config.Confi
 		"HeapIdle", "HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups",
 		"MCacheInuse", "MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "NumForcedGC",
 		"NumGC", "OtherSys", "PauseTotalNs", "StackInuse", "StackSys", "Sys", "TotalAlloc"}
+	psutilRequiredMetrics := []string{"TotalMemory", "FreeMemory", "CPUutilization1"}
+
 	return &App{
 		Logger:                 logger,
 		Client:                 client,
 		Config:                 config,
 		RuntimeRequiredMetrics: runtimeRequiredMetrics,
+		PSUtilRequiredMetrics:  psutilRequiredMetrics,
 		ReadyMetrics:           make(chan []models.Metric, 1),
-		PollCounter:            metrics.PollCounter{},
+		PollCounter:            &metrics.PollCounter{},
 		ReportTicker:           time.NewTicker(config.ReportInterval),
 	}, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
 	a.Logger.Infof("Starting agent")
-	a.Logger.Infof("Collecting metric every %s and sending every %v",
-		a.Config.PollInterval, a.Config.ReportInterval)
-	go a.GetMetrics(ctx)
-	a.WaitMetrics(ctx)
-	return nil
-}
+	a.Logger.Infof("Collecting metric every %s and sending every %v", a.Config.PollInterval, a.Config.ReportInterval)
 
-func (a *App) WaitMetrics(ctx context.Context) {
+	readyMetrics := a.GetMetrics(ctx, a.PollCounter)
 	for {
 		select {
+		case <-ctx.Done():
+			a.Logger.Infof("Stopping agent")
+			return nil
 		case <-a.ReportTicker.C:
-			resultMetrics := <-a.ReadyMetrics
-
-			withRetry := retry.NewRetryer(a.Logger, a.Config.RetryAttempts, time.Duration(a.Config.RetryWaitTime), func(ctx context.Context) (bool, error) {
-				statusCode, err := a.sendBatchMetrics(resultMetrics)
-				if err != nil {
-
-					if statusCode > 200 && statusCode < 500 {
-						return true, err
-					}
-					if statusCode < 200 || statusCode >= 500 {
-						return false, err
-					}
+			a.Logger.Infof("report ticker")
+			metricCount := len(readyMetrics)
+			a.Logger.Infof("metric count: %v", metricCount)
+			if metricCount > 0 {
+				m := <-readyMetrics
+				for _, metric := range m {
+					a.Logger.Infof("Send metric %v, value %v", metric.ID, metric.String())
 				}
-				return true, nil
-			})
-
-			err := withRetry.Do(ctx)
-			if err != nil {
-				a.Logger.Errorf("Can not send metrics: %s", err)
-				continue
+			} else {
+				a.Logger.Infof("No metrics to send")
 			}
-
-			// обнуляем счетчик PollCounter после успешной отправки метрик
-			a.PollCounter.Reset()
-
-			a.Logger.Debugf("Metrics have been sent successfully")
-
-		case <-ctx.Done():
-			a.Logger.Infof("Stopping sending metrics")
-			return
 		}
 	}
-
 }
 
-func (a *App) GetMetrics(ctx context.Context) {
-	for {
-		systemMetrics := metrics.GetSystemMetrics()
-		resultMetrics, err := metrics.RemoveUnnecessaryMetrics(systemMetrics, a.RuntimeRequiredMetrics)
-		if err != nil {
-			a.Logger.Errorf("Can not remove unnecessary metrics: %s", err)
-			continue
+//func (a *App) WaitMetrics(ctx context.Context) {
+//	for {
+//		select {
+//		case <-a.ReportTicker.C:
+//			resultMetrics := <-a.ReadyMetrics
+//
+//			withRetry := retry.NewRetryer(a.Logger, a.Config.RetryAttempts, time.Duration(a.Config.RetryWaitTime), func(ctx context.Context) (bool, error) {
+//				statusCode, err := a.sendBatchMetrics(resultMetrics)
+//				if err != nil {
+//
+//					if statusCode > 200 && statusCode < 500 {
+//						return true, err
+//					}
+//					if statusCode < 200 || statusCode >= 500 {
+//						return false, err
+//					}
+//				}
+//				return true, nil
+//			})
+//
+//			err := withRetry.Do(ctx)
+//			if err != nil {
+//				a.Logger.Errorf("Can not send metrics: %s", err)
+//				continue
+//			}
+//
+//			// обнуляем счетчик PollCounter после успешной отправки метрик
+//			a.PollCounter.Reset()
+//
+//			a.Logger.Debugf("Metrics have been sent successfully")
+//
+//		case <-ctx.Done():
+//			a.Logger.Infof("Stopping sending metrics")
+//			return
+//		}
+//	}
+//}
+
+func (a *App) GetMetrics(ctx context.Context, counter *metrics.PollCounter) chan []models.Metric {
+	pollInterval := a.Config.PollInterval
+	pollTicker := time.NewTicker(pollInterval)
+	reportInterval := a.Config.ReportInterval
+	reportTicker := time.NewTicker(reportInterval)
+
+	resultChan := make(chan []models.Metric, 1)
+
+	go func() {
+		defer pollTicker.Stop()
+		defer reportTicker.Stop()
+
+		for {
+			a.Logger.Infof("increment counter")
+			a.PollCounter.Inc()
+
+			select {
+
+			case <-ctx.Done():
+				a.Logger.Info("Stopping receiving metrics")
+				return
+
+			case <-pollTicker.C:
+				a.Logger.Info("Poll ticker")
+				var result []models.Metric
+
+				runtimeMetrics, err := metrics.GetRuntimeMetrics(a.RuntimeRequiredMetrics)
+				if err != nil {
+					a.Logger.Errorf("Can not get runtime metrics: %s", err)
+					continue
+				}
+				result = append(result, runtimeMetrics...)
+
+				customMetrics := metrics.GetCustomMetrics(counter.Get())
+				result = append(result, customMetrics...)
+
+				select {
+				// если канал пуст записываем данные
+				case resultChan <- result:
+				// если в канале уже есть данные
+				default:
+					// вычитываем их
+					<-resultChan
+					// помещаем туда новые данные
+					resultChan <- result
+				}
+
+				//a.Logger.Infof("reset counter")
+				//a.PollCounter.Reset()
+			}
 		}
-
-		a.PollCounter.Inc()
-
-		pollCountMetric, randomValueMetric := metrics.GenerateCustomMetrics(a.PollCounter.Get())
-		resultMetrics = append(resultMetrics, pollCountMetric, randomValueMetric)
-
-		select {
-		case <-ctx.Done():
-			a.Logger.Info("Stopping receiving metrics")
-			return
-		// если канал пуст - помещаем туда данные
-		case a.ReadyMetrics <- resultMetrics:
-		// если в канале уже есть данные
-		default:
-			// вычитываем их
-			<-a.ReadyMetrics
-			// помещаем туда новые данные
-			a.ReadyMetrics <- resultMetrics
-		}
-		time.Sleep(a.Config.PollInterval)
-	}
+	}()
+	return resultChan
 }
 
 func (a *App) sendBatchMetrics(metrics []models.Metric) (statusCode int, err error) {

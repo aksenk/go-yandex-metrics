@@ -43,7 +43,7 @@ func Test_GenerateCustomMetrics(t *testing.T) {
 			want2, err := models.NewMetric(tt.want2.Name, tt.want2.Type, tt.want2.Value)
 			require.NoError(t, err)
 
-			pollMetric, randMetric := GenerateCustomMetrics(counter)
+			pollMetric, randMetric := GetCustomMetrics(counter)
 			if !reflect.DeepEqual(want1, pollMetric) {
 				t.Error("RuntimeRequiredMetrics are not equals")
 			}
@@ -56,7 +56,7 @@ func Test_GenerateCustomMetrics(t *testing.T) {
 
 			counter++
 
-			pollMetric, randMetric = GenerateCustomMetrics(counter)
+			pollMetric, randMetric = GetCustomMetrics(counter)
 			assert.Equal(t, requiredNewValue, *pollMetric.Delta, "Value of the PollCount metric "+
 				"should be incremented to 1")
 			assert.NotEqualf(t, oldRandValue, randMetric.Value, "Value of the RandomValue metric "+
@@ -66,7 +66,7 @@ func Test_GenerateCustomMetrics(t *testing.T) {
 }
 
 func Test_GetSystemMetrics(t *testing.T) {
-	metrics := GetSystemMetrics()
+	metrics := GetRuntimeMetrics()
 	assert.Contains(t, metrics, "Alloc", "The system handlers is not contains 'Alloc' metric")
 }
 

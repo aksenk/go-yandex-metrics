@@ -257,7 +257,7 @@ func Test_GetMetrics(t *testing.T) {
 			wantMetric, err := models.NewMetric(tt.want.Name, tt.want.Type, tt.want.Value)
 			require.NoError(t, err)
 
-			go app.GetMetrics(context.TODO())
+			go app.GetRuntimeMetrics(context.TODO())
 			time.Sleep(tt.sleepTime)
 			var data []models.Metric
 			select {
