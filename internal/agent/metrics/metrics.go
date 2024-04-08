@@ -5,6 +5,8 @@ import (
 	"github.com/aksenk/go-yandex-metrics/internal/converter"
 	"github.com/aksenk/go-yandex-metrics/internal/models"
 	"github.com/fatih/structs"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 	"math/rand"
 	"runtime"
 	"slices"
@@ -56,37 +58,36 @@ func GetCustomMetrics(counter int64) []models.Metric {
 	return resultMetrics
 }
 
-//func GetCustomMetrics(ctx context.Context, ticker *time.Ticker, counter *PollCounter, logger *zap.SugaredLogger) chan []models.Metric {
-//	resultChan := make(chan []models.Metric, 1)
-//
-//	go func() {
-//		defer close(resultChan)
-//
-//		for {
-//			select {
-//			case <-ctx.Done():
-//				logger.Info("Stopping receiving runtime metrics")
-//				return
-//			case <-ticker.C:
-//				counter.Inc()
-//				metrics := getCustomMetrics(counter.Get())
-//				select {
-//				case resultChan <- metrics:
-//				// если в канале уже есть данные
-//				default:
-//					// вычитываем их
-//					<-resultChan
-//					// помещаем туда новые данные
-//					resultChan <- metrics
-//				}
-//			}
-//		}
-//	}()
-//
-//	return resultChan
-//}
+func GetPSUtilMetrics(ctx context.Context) ([]models.Metric, error) {
+	var resultMetrics []models.Metric
 
-func GetPSUtilMetrics(ctx context.Context) {
+	v, _ := mem.VirtualMemoryWithContext(ctx)
+
+	c, err := cpu.PercentWithContext(ctx, 10, false)
+
+	if err != nil {
+		return nil, err
+	}
+
+	TotalMemoryMetric, err := models.NewMetric("TotalMemory", "gauge", v.Total)
+	if err != nil {
+		return nil, err
+	}
+	resultMetrics = append(resultMetrics, TotalMemoryMetric)
+
+	FreeMemoryMetric, err := models.NewMetric("FreeMemory", "gauge", v.Free)
+	if err != nil {
+		return nil, err
+	}
+	resultMetrics = append(resultMetrics, FreeMemoryMetric)
+
+	CPUutilization1Metric, err := models.NewMetric("CPUutilization1", "gauge", c[0])
+	if err != nil {
+		return nil, err
+	}
+	resultMetrics = append(resultMetrics, CPUutilization1Metric)
+
+	return resultMetrics, nil
 }
 
 func GetRuntimeMetrics(r []string) ([]models.Metric, error) {
@@ -114,36 +115,3 @@ func GetRuntimeMetrics(r []string) ([]models.Metric, error) {
 	}
 	return resultMetrics, nil
 }
-
-//func GetRuntimeMetrics(ctx context.Context, ticker *time.Ticker, requiredMetrics []string, logger *zap.SugaredLogger) chan []models.Metric {
-//	resultChan := make(chan []models.Metric, 1)
-//
-//	go func() {
-//		defer close(resultChan)
-//
-//		for {
-//			select {
-//			case <-ctx.Done():
-//				logger.Info("Stopping receiving runtime metrics")
-//				return
-//			case <-ticker.C:
-//				metrics, err := getRuntimeMetrics(requiredMetrics)
-//				if err != nil {
-//					logger.Errorf("Can not get run metrics: %s", err)
-//					continue
-//				}
-//				select {
-//				case resultChan <- metrics:
-//				// если в канале уже есть данные
-//				default:
-//					// вычитываем их
-//					<-resultChan
-//					// помещаем туда новые данные
-//					resultChan <- metrics
-//				}
-//			}
-//		}
-//	}()
-//
-//	return resultChan
-//}

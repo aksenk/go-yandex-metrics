@@ -27,6 +27,12 @@ type App struct {
 	ReportTicker           *time.Ticker
 }
 
+type Response struct {
+	Name       string
+	StatusCode int
+	Err        error
+}
+
 var errMetricSend = fmt.Errorf("error sending metric")
 var errStatusCode = fmt.Errorf("unexpected response status code")
 var errReadBody = fmt.Errorf("error reading response body")
@@ -50,9 +56,32 @@ func NewApp(client *http.Client, logger *zap.SugaredLogger, config *config.Confi
 	}, nil
 }
 
+func (a *App) resultHandler(jobs chan<- models.Metric, results <-chan Response) {
+	for result := range results {
+		if result.Err == nil {
+			a.Logger.Errorf("Metric %v is successfully sent", result.Name)
+		}
+		if result.Err != nil {
+			a.Logger.Errorf("Error sending %v metric: %v", result.Name, result.Err)
+		}
+		if result.StatusCode != 200 {
+			a.Logger.Errorf("Unexpected status code while sending %v metric: %v", result.Name, result.StatusCode)
+		}
+	}
+}
+
 func (a *App) Run(ctx context.Context) error {
 	a.Logger.Infof("Starting agent")
 	a.Logger.Infof("Collecting metric every %s and sending every %v", a.Config.PollInterval, a.Config.ReportInterval)
+
+	jobs := make(chan models.Metric, a.Config.RateLimit)
+	results := make(chan Response, a.Config.RateLimit)
+
+	for i := 0; i < a.Config.RateLimit; i++ {
+		go a.worker(jobs, results)
+	}
+
+	go a.resultHandler(jobs, results)
 
 	readyMetrics := a.GetMetrics(ctx, a.PollCounter)
 	for {
@@ -67,7 +96,7 @@ func (a *App) Run(ctx context.Context) error {
 			if metricCount > 0 {
 				m := <-readyMetrics
 				for _, metric := range m {
-					a.Logger.Infof("Send metric %v, value %v", metric.ID, metric.String())
+					jobs <- metric
 				}
 			} else {
 				a.Logger.Infof("No metrics to send")
@@ -75,44 +104,6 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}
 }
-
-//func (a *App) WaitMetrics(ctx context.Context) {
-//	for {
-//		select {
-//		case <-a.ReportTicker.C:
-//			resultMetrics := <-a.ReadyMetrics
-//
-//			withRetry := retry.NewRetryer(a.Logger, a.Config.RetryAttempts, time.Duration(a.Config.RetryWaitTime), func(ctx context.Context) (bool, error) {
-//				statusCode, err := a.sendBatchMetrics(resultMetrics)
-//				if err != nil {
-//
-//					if statusCode > 200 && statusCode < 500 {
-//						return true, err
-//					}
-//					if statusCode < 200 || statusCode >= 500 {
-//						return false, err
-//					}
-//				}
-//				return true, nil
-//			})
-//
-//			err := withRetry.Do(ctx)
-//			if err != nil {
-//				a.Logger.Errorf("Can not send metrics: %s", err)
-//				continue
-//			}
-//
-//			// обнуляем счетчик PollCounter после успешной отправки метрик
-//			a.PollCounter.Reset()
-//
-//			a.Logger.Debugf("Metrics have been sent successfully")
-//
-//		case <-ctx.Done():
-//			a.Logger.Infof("Stopping sending metrics")
-//			return
-//		}
-//	}
-//}
 
 func (a *App) GetMetrics(ctx context.Context, counter *metrics.PollCounter) chan []models.Metric {
 	pollInterval := a.Config.PollInterval
@@ -127,7 +118,6 @@ func (a *App) GetMetrics(ctx context.Context, counter *metrics.PollCounter) chan
 		defer reportTicker.Stop()
 
 		for {
-			a.Logger.Infof("increment counter")
 			a.PollCounter.Inc()
 
 			select {
@@ -137,7 +127,6 @@ func (a *App) GetMetrics(ctx context.Context, counter *metrics.PollCounter) chan
 				return
 
 			case <-pollTicker.C:
-				a.Logger.Info("Poll ticker")
 				var result []models.Metric
 
 				runtimeMetrics, err := metrics.GetRuntimeMetrics(a.RuntimeRequiredMetrics)
@@ -149,6 +138,13 @@ func (a *App) GetMetrics(ctx context.Context, counter *metrics.PollCounter) chan
 
 				customMetrics := metrics.GetCustomMetrics(counter.Get())
 				result = append(result, customMetrics...)
+
+				psutilMetrics, err := metrics.GetPSUtilMetrics(ctx)
+				if err != nil {
+					a.Logger.Errorf("Can not get psutil metrics: %s", err)
+					continue
+				}
+				result = append(result, psutilMetrics...)
 
 				select {
 				// если канал пуст записываем данные
@@ -169,62 +165,127 @@ func (a *App) GetMetrics(ctx context.Context, counter *metrics.PollCounter) chan
 	return resultChan
 }
 
-func (a *App) sendBatchMetrics(metrics []models.Metric) (statusCode int, err error) {
-	for i := 0; i < len(metrics); i += a.Config.BatchSize {
-		end := i + a.Config.BatchSize
-		if end > len(metrics) {
-			end = len(metrics)
+//func (a *App) sendBatchMetrics(metrics []models.Metric) (statusCode int, err error) {
+//	for i := 0; i < len(metrics); i += a.Config.BatchSize {
+//		end := i + a.Config.BatchSize
+//		if end > len(metrics) {
+//			end = len(metrics)
+//		}
+//		a.Logger.Debugf("Processing metrics from %v to %v", i, end)
+//
+//		batch := metrics[i:end]
+//
+//		jsonData, err := json.Marshal(batch)
+//		if err != nil {
+//			return 0, fmt.Errorf("can not marshal data: %v", err)
+//		}
+//
+//		var gzippedBody bytes.Buffer
+//		w := gzip.NewWriter(&gzippedBody)
+//
+//		if _, err = w.Write(jsonData); err != nil {
+//			return 0, fmt.Errorf("can not gzip data: %v", err)
+//		}
+//
+//		if err = w.Close(); err != nil {
+//			return 0, fmt.Errorf("can not close gzip writer: %v", err)
+//		}
+//
+//		req, err := http.NewRequest(http.MethodPost, a.Config.ServerURL, &gzippedBody)
+//		if err != nil {
+//			return 0, fmt.Errorf("can not create request: %v", err)
+//		}
+//		req.Header.Set("Content-Type", "application/json")
+//		req.Header.Set("Content-Encoding", "gzip")
+//
+//		cryptKey := a.Config.CryptKey
+//		if cryptKey != "" {
+//			sign := signature.GetSignature(jsonData, cryptKey)
+//			req.Header.Set(signature.SignHeader, sign)
+//		}
+//
+//		res, err := a.Client.Do(req)
+//		if err != nil {
+//			return 0, fmt.Errorf("%w: %s", errMetricSend, err)
+//		}
+//
+//		var resBody []byte
+//		_, err = res.Body.Read(resBody)
+//		res.Body.Close()
+//		if err != nil {
+//			return 0, fmt.Errorf("%w: %s", errReadBody, err)
+//		}
+//
+//		if res.StatusCode != http.StatusOK {
+//			return res.StatusCode, fmt.Errorf("%w: %v, response: %v", errStatusCode, res.StatusCode, string(resBody))
+//		}
+//
+//		a.Logger.Debug("Batch sended")
+//	}
+//	return http.StatusOK, nil
+//}
+
+func (a *App) worker(jobs <-chan models.Metric, results chan<- Response) {
+	for j := range jobs {
+		a.Logger.Infof("Sending metric %v", j.ID)
+		statusCode, err := a.sendMetric(j)
+		resp := Response{
+			StatusCode: statusCode,
+			Err:        err,
+			Name:       j.ID,
 		}
-		a.Logger.Debugf("Processing metrics from %v to %v", i, end)
-
-		batch := metrics[i:end]
-
-		jsonData, err := json.Marshal(batch)
-		if err != nil {
-			return 0, fmt.Errorf("can not marshal data: %v", err)
-		}
-
-		var gzippedBody bytes.Buffer
-		w := gzip.NewWriter(&gzippedBody)
-
-		if _, err = w.Write(jsonData); err != nil {
-			return 0, fmt.Errorf("can not gzip data: %v", err)
-		}
-
-		if err = w.Close(); err != nil {
-			return 0, fmt.Errorf("can not close gzip writer: %v", err)
-		}
-
-		req, err := http.NewRequest(http.MethodPost, a.Config.ServerURL, &gzippedBody)
-		if err != nil {
-			return 0, fmt.Errorf("can not create request: %v", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Content-Encoding", "gzip")
-
-		cryptKey := a.Config.CryptKey
-		if cryptKey != "" {
-			sign := signature.GetSignature(jsonData, cryptKey)
-			req.Header.Set(signature.SignHeader, sign)
-		}
-
-		res, err := a.Client.Do(req)
-		if err != nil {
-			return 0, fmt.Errorf("%w: %s", errMetricSend, err)
-		}
-
-		var resBody []byte
-		_, err = res.Body.Read(resBody)
-		res.Body.Close()
-		if err != nil {
-			return 0, fmt.Errorf("%w: %s", errReadBody, err)
-		}
-
-		if res.StatusCode != http.StatusOK {
-			return res.StatusCode, fmt.Errorf("%w: %v, response: %v", errStatusCode, res.StatusCode, string(resBody))
-		}
-
-		a.Logger.Debug("Batch sended")
+		results <- resp
 	}
+}
+
+func (a *App) sendMetric(metric models.Metric) (statusCode int, err error) {
+	var metrics []models.Metric
+	metrics = append(metrics, metric)
+
+	jsonData, err := json.Marshal(metrics)
+	if err != nil {
+		return 0, fmt.Errorf("can not marshal data: %v", err)
+	}
+
+	var gzippedBody bytes.Buffer
+	w := gzip.NewWriter(&gzippedBody)
+
+	if _, err = w.Write(jsonData); err != nil {
+		return 0, fmt.Errorf("can not gzip data: %v", err)
+	}
+
+	if err = w.Close(); err != nil {
+		return 0, fmt.Errorf("can not close gzip writer: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, a.Config.ServerURL, &gzippedBody)
+	if err != nil {
+		return 0, fmt.Errorf("can not create request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+
+	cryptKey := a.Config.CryptKey
+	if cryptKey != "" {
+		sign := signature.GetSignature(jsonData, cryptKey)
+		req.Header.Set(signature.SignHeader, sign)
+	}
+
+	res, err := a.Client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s", errMetricSend, err)
+	}
+
+	var resBody []byte
+	_, err = res.Body.Read(resBody)
+	res.Body.Close()
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s", errReadBody, err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return res.StatusCode, fmt.Errorf("%w: %v, response: %v", errStatusCode, res.StatusCode, string(resBody))
+	}
+
 	return http.StatusOK, nil
 }
