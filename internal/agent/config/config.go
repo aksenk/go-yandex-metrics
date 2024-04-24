@@ -19,6 +19,8 @@ type Config struct {
 	RetryWaitTime        int
 	RetryInitialWaitTime int
 	ClientTimeout        int
+	CryptKey             string
+	RateLimit            int
 }
 
 func NewConfig() (*Config, error) {
@@ -28,13 +30,17 @@ func NewConfig() (*Config, error) {
 	serverAddr := flag.String("a", "localhost:8080", "RuntimeRequiredMetrics server address (host:port)")
 	pollInterval := flag.String("p", "2", "Interval for scraping metrics (in seconds)")
 	reportInterval := flag.String("r", "10", "Interval for sending metrics (in seconds)")
-	logLevel := flag.String("l", "debug", "Log level")
+	logLevel := flag.String("log", "debug", "Log level")
 	batchSize := flag.String("b", "50", "Batch size")
+	cryptKey := flag.String("k", "", "Crypt key for signing requests")
+	rateLimit := flag.String("l", "10", "Count of the concurrent requests")
+
 	retryAttempts := 3
 	retryWaitTime := 2
 	clientTimeout := 10
 
 	flag.Parse()
+
 	if e := os.Getenv("USE_HTTPS"); e != "" {
 		serverUseHTTPS = &e
 	}
@@ -53,6 +59,12 @@ func NewConfig() (*Config, error) {
 	if e := os.Getenv("BATCH_SIZE"); e != "" {
 		batchSize = &e
 	}
+	if e := os.Getenv("KEY"); e != "" {
+		cryptKey = &e
+	}
+	if e := os.Getenv("RATE_LIMIT"); e != "" {
+		rateLimit = &e
+	}
 	reportIntervalInt, err := strconv.Atoi(*reportInterval)
 	if err != nil {
 		return nil, err
@@ -68,10 +80,17 @@ func NewConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	serverUseHTTPSBool, err := strconv.ParseBool(*serverUseHTTPS)
 	if err != nil {
 		return nil, err
 	}
+
+	rateLimitInt, err := strconv.Atoi(*rateLimit)
+	if err != nil {
+		return nil, err
+	}
+
 	if serverUseHTTPSBool {
 		serverURL = fmt.Sprintf("https://%v/updates/", *serverAddr)
 	} else {
@@ -88,5 +107,7 @@ func NewConfig() (*Config, error) {
 		RetryAttempts:  retryAttempts,
 		RetryWaitTime:  retryWaitTime,
 		ClientTimeout:  clientTimeout,
+		CryptKey:       *cryptKey,
+		RateLimit:      rateLimitInt,
 	}, nil
 }

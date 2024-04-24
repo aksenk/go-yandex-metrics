@@ -17,6 +17,7 @@ type Config struct {
 	FileStorage     FileStorageConfig
 	PostgresStorage PostgresConfig
 	RetryConfig     RetryConfig
+	CryptConfig     CryptConfig
 }
 
 type RetryConfig struct {
@@ -43,6 +44,10 @@ type PostgresConfig struct {
 	MigrationsDir string
 }
 
+type CryptConfig struct {
+	Key string
+}
+
 func GetConfig() (*Config, error) {
 	log, err := logger.NewLogger("info")
 	if err != nil {
@@ -54,12 +59,17 @@ func GetConfig() (*Config, error) {
 	fileStorageFileName := flag.String("f", "", "Path to the file for storing metrics (file storage)")
 	fileStorageStartupRestore := flag.Bool("r", true, "Restoring metrics from the file at startup (file storage)")
 	databaseDSN := flag.String("d", "", "Postgres connection DSN string (database storage)")
+	cryptKey := flag.String("k", "", "Crypt key for signing requests")
+
 	retryAttempts := 3
 	retryWaitTime := 2
 	migrationsDir := "./migrations/postgres"
 
 	flag.Parse()
 
+	if e := os.Getenv("KEY"); e != "" {
+		cryptKey = &e
+	}
 	if e := os.Getenv("LOG_LEVEL"); e != "" {
 		logLevel = &e
 	}
@@ -118,6 +128,9 @@ func GetConfig() (*Config, error) {
 		RetryConfig: RetryConfig{
 			RetryAttempts: retryAttempts,
 			RetryWaitTime: retryWaitTime,
+		},
+		CryptConfig: CryptConfig{
+			Key: *cryptKey,
 		},
 	}, nil
 }

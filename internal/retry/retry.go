@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type Worker func(ctx context.Context) error
+type Worker func(ctx context.Context) (stopRetry bool, err error)
 
 type Retry struct {
 	Logger        *zap.SugaredLogger
@@ -26,7 +26,10 @@ func NewRetryer(logger *zap.SugaredLogger, attempts int, sleepStep time.Duration
 }
 
 func (w *Retry) Do(ctx context.Context) error {
-	err := w.Worker(ctx)
+	stop, err := w.Worker(ctx)
+	if stop {
+		return err
+	}
 	if err == nil {
 		return nil
 	}
@@ -41,7 +44,10 @@ func (w *Retry) Do(ctx context.Context) error {
 			sleepTime := time.Duration(i)*w.SleepStep - 1
 			w.Logger.Errorf("Retrying in %d seconds", sleepTime)
 			time.Sleep(sleepTime * time.Second)
-			err = w.Worker(ctx)
+			stop, err = w.Worker(ctx)
+			if stop {
+				return err
+			}
 			if err == nil {
 				return nil
 			}
